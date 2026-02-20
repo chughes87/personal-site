@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Chat API for pointfree.space
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: 'http://pointfree.space'
+    Description: CORS allowed origin. Update to https://pointfree.space once CloudFront/HTTPS is set up.
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+
+  ChatApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+        MaxAge: 300
+
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.handler
+      CodeUri: .
+      Environment:
+        Variables:
+          MESSAGES_TABLE: !Ref MessagesTable
+          RATE_TABLE:     !Ref RateLimitsTable
+          RATE_LIMIT:     '15'
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MessagesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RateLimitsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ChatApi
+            Path:  /messages
+            Method: ANY
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: chat-messages
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: room
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: room
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  RateLimitsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: chat-rate-limits
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+Outputs:
+  ApiUrl:
+    Value: !Sub 'https://${ChatApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Description: >
+      Paste this URL into chat.html as window.CHAT_API_BASE after deployment.
+      Deploy with: sam build && sam deploy --guided --stack-name personal-site-chat --region us-west-1

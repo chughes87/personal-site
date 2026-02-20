@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate HTML
-        run: npx --yes html-validate index.html
+        run: npx --yes html-validate index.html chat.html
 
   deploy:
     runs-on: ubuntu-latest
@@ -28,12 +28,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-west-1
 
-      # index.html must never be served stale
-      - name: Upload index.html (no-cache)
+      # HTML files must never be served stale
+      - name: Upload HTML (no-cache)
         run: |
-          aws s3 cp index.html s3://pointfree.space/index.html \
-            --cache-control "no-cache, max-age=0" \
-            --content-type "text/html; charset=utf-8"
+          for f in *.html; do
+            [ -f "$f" ] || continue
+            aws s3 cp "$f" "s3://pointfree.space/$f" \
+              --cache-control "no-cache, max-age=0" \
+              --content-type "text/html; charset=utf-8"
+          done
 
       # CSS/JS — short TTL (no content-hash filenames, so keep low)
       - name: Upload CSS and JS (5 min cache)
@@ -67,6 +70,7 @@ jobs:
           aws s3 sync . s3://pointfree.space \
             --exclude ".git/*" \
             --exclude ".github/*" \
+            --exclude "api/*" \
             --exclude "PLAN.md" \
             --exclude "README.md" \
             --delete \

@@ -10,12 +10,16 @@ Build a clean, fast, responsive personal portfolio site for Charles Hughes (chug
 - Hosted on AWS at **pointfree.space**
 - GitHub repo: https://github.com/chughes87/personal-site
 
-## Current Status
+## Open TODOs
 
-### Next step
-Set up the Route 53 A record (Alias → S3 website endpoint for us-west-1).
+- [ ] Verify / recreate IAM OIDC provider (see AWS account section)
+- [ ] Route 53 — Alias A record for `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
+- [ ] Deploy chat SAM stack: `cd api && sam build && sam deploy --guided --stack-name personal-site-chat --region us-west-1`
+- [ ] After SAM deploy: paste the API Gateway URL output into `chat.html` as `window.CHAT_API_BASE`
+- [ ] Add Experience section to portfolio (work history from resume not yet on the page)
 
-### AWS account
+## AWS account
+
 - Account ID: `697845623602`
 - IAM user: `windows-dev`
 - S3 bucket: `pointfree.space` (us-west-1), static website hosting enabled, public read policy set
@@ -32,84 +36,88 @@ Set up the Route 53 A record (Alias → S3 website endpoint for us-west-1).
 
 ## Pages / Sections
 
-Single-page layout with anchor nav:
-
-| Section | Purpose |
-|---------|---------|
-| Hero | Name, title, short tagline, CTA buttons |
-| About | Brief bio, social links (GitHub, LinkedIn) |
-| Skills | Languages, Frontend, Backend, Testing & Infra |
-| Projects | Cards with title, description, tags, links |
-| Contact | Email CTA |
-| Footer | Copyright, social links |
+| Page | Sections |
+|------|---------|
+| `index.html` | Hero, About, Skills, Projects, Contact, Footer |
+| `chat.html` | Real-time human-to-human chat (polls every 3 s) |
 
 ## Features
 
 - Dark / light theme toggle (CSS custom properties + JS)
 - Smooth scroll navigation
 - Responsive layout (mobile-first)
-- No external dependencies
+- No external dependencies (frontend)
+- Chat: per-IP rate limiting (15 msg/hr), 7-day message TTL, 500-char limit
 
 ## File Structure
 
 ```
 personal-site/
-├── index.html              # markup
-├── style.css               # all styles (CSS custom properties for theming)
-├── main.js                 # theme toggle, scroll behaviour, dynamic year
+├── index.html              # portfolio page
+├── chat.html               # chat page — update window.CHAT_API_BASE after SAM deploy
+├── style.css               # all styles (design tokens, dark mode, chat UI)
+├── main.js                 # theme toggle, dynamic year (used on all pages)
+├── chat.js                 # chat polling, send, username management
+├── api/
+│   ├── handler.js          # Lambda — GET/POST /messages + rate limiting
+│   └── template.yaml       # SAM — Lambda + HTTP API + DynamoDB tables
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml      # GitHub Actions CD — validates HTML, deploys to S3 on push to main
+│       └── deploy.yml      # validates HTML, deploys static files to S3
 └── PLAN.md                 # this file
 ```
 
 ## Milestones
 
-1. [x] PLAN.md — project plan
+1. [x] `PLAN.md` — project plan
 2. [x] `index.html` — full page structure, real content from resume
-3. [x] `style.css` — responsive styles + dark mode
+3. [x] `style.css` — responsive styles + dark mode + chat UI
 4. [x] `main.js` — theme toggle, dynamic year
-5. [x] AWS infrastructure — S3 bucket (us-west-1), static website hosting, public read policy
-6. [ ] IAM OIDC provider — needs to be verified/recreated (see note above)
-7. [x] IAM role `github-actions-personal-site` created, S3 deploy permissions attached
-8. [x] GitHub secret `AWS_ROLE_ARN` added to repo
-9. [x] `.github/workflows/deploy.yml` — HTML validation + S3 deploy with cache headers
-10. [ ] Route 53 — Alias A record for `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
+5. [x] `chat.html` + `chat.js` — dedicated chat page
+6. [x] `api/handler.js` + `api/template.yaml` — chat Lambda + SAM template
+7. [x] AWS infrastructure — S3 bucket (us-west-1), static website hosting, public read policy
+8. [ ] IAM OIDC provider — verify exists (see note above)
+9. [x] IAM role `github-actions-personal-site` — S3 deploy permissions attached
+10. [x] GitHub secret `AWS_ROLE_ARN` added to repo
+11. [x] `.github/workflows/deploy.yml` — HTML validation + S3 deploy with cache headers
+12. [ ] Route 53 — Alias A record `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
+13. [ ] SAM deploy — chat API stack in us-west-1
+14. [ ] Update `chat.html` with real API Gateway URL
 
 ## AWS Hosting Architecture
-
-Static site served directly from S3 static website hosting, pointed to by Route 53.
 
 ```
 Browser
   └─► Route 53 (pointfree.space A alias)
         └─► S3 static website endpoint
-              └─► s3://pointfree.space (public static website hosting)
+              └─► s3://pointfree.space
+
+Browser (chat page)
+  └─► API Gateway (HTTP API)
+        └─► Lambda (handler.js)
+              ├─► DynamoDB: chat-messages   (room + sk, TTL 7 days)
+              └─► DynamoDB: chat-rate-limits (ip#hour, TTL 2 hours)
 ```
 
-> Note: No CloudFront for now — S3 static website hosting is sufficient. CloudFront can be
-> added later for HTTPS. S3 static hosting is HTTP only.
+> No CloudFront for now — add later for HTTPS. S3 static hosting is HTTP only.
 
-### Resources to provision
+## GitHub Actions CD
 
-| Resource | Detail |
-|----------|--------|
-| S3 bucket | `pointfree.space` — static website hosting enabled, public read policy ✅ done |
-| Route 53 | Alias A record for apex (`pointfree.space`) → `s3-website-us-west-1.amazonaws.com` ⬅ todo |
+Deploys on every push to `main`. Uses OIDC (no long-lived AWS keys).
 
-## GitHub Actions CD (OIDC)
+- `validate` job: runs `html-validate` on all `.html` files
+- `deploy` job: uploads HTML (`no-cache`), CSS/JS (5 min), images (1 day), then deletes stale files
+- `api/` directory is excluded from S3 sync
 
-Deploys on every push to `main`. Uses OIDC (no long-lived AWS keys stored as secrets).
-A `validate` job runs `html-validate` on `index.html` before deploying.
-Cache-Control headers are set per asset type.
+### AWS setup status
 
-### AWS setup
-
-- OIDC provider: `token.actions.githubusercontent.com` ⚠ verify exists
-- IAM role: `github-actions-personal-site` ✅
-- Trust policy: `repo:chughes87/personal-site:ref:refs/heads/main` ✅
-- Permission policy: `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` on `pointfree.space` ✅
-- GitHub secret `AWS_ROLE_ARN` set ✅
+| Item | Status |
+|---|---|
+| OIDC provider `token.actions.githubusercontent.com` | ⚠ verify |
+| IAM role `github-actions-personal-site` | ✅ |
+| Trust policy `repo:chughes87/personal-site:ref:refs/heads/main` | ✅ |
+| S3 permissions (`PutObject`, `DeleteObject`, `ListBucket`) | ✅ |
+| GitHub secret `AWS_ROLE_ARN` | ✅ |
 
 ## Design Tokens
 
@@ -127,5 +135,5 @@ Cache-Control headers are set per asset type.
 - Prioritise accessibility: semantic HTML, aria labels, sufficient contrast
 - All external links open in a new tab with `rel="noopener"`
 - S3 bucket name must exactly match domain name for Route 53 alias to work
-- CloudFront can be added later for HTTPS — S3 static hosting is HTTP only
+- CloudFront needed for HTTPS — S3 static hosting is HTTP only
 - Claude can write files directly to the Windows repo path — no WSL workaround needed
