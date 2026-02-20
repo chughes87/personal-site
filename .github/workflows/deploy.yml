@@ -1,0 +1,76 @@
+name: Deploy to S3
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate HTML
+        run: |
+          sudo apt-get install -y tidy
+          # tidy exits 2 on errors, 1 on warnings — fail only on errors
+          tidy -errors -quiet index.html; [ $? -lt 2 ]
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-1
+
+      # index.html must never be served stale
+      - name: Upload index.html (no-cache)
+        run: |
+          aws s3 cp index.html s3://pointfree.space/index.html \
+            --cache-control "no-cache, max-age=0" \
+            --content-type "text/html; charset=utf-8"
+
+      # CSS/JS — short TTL (no content-hash filenames, so keep low)
+      - name: Upload CSS and JS (5 min cache)
+        run: |
+          for f in *.css; do
+            [ -f "$f" ] || continue
+            aws s3 cp "$f" "s3://pointfree.space/$f" \
+              --cache-control "public, max-age=300" \
+              --content-type "text/css"
+          done
+          for f in *.js; do
+            [ -f "$f" ] || continue
+            aws s3 cp "$f" "s3://pointfree.space/$f" \
+              --cache-control "public, max-age=300" \
+              --content-type "application/javascript"
+          done
+
+      # Other static assets (images, fonts) — longer cache
+      - name: Sync remaining assets (1 day cache)
+        run: |
+          aws s3 sync . s3://pointfree.space \
+            --exclude "*" \
+            --include "*.png" --include "*.jpg" --include "*.jpeg" \
+            --include "*.webp" --include "*.svg" --include "*.ico" \
+            --include "*.woff" --include "*.woff2" \
+            --cache-control "public, max-age=86400"
+
+      # Remove files deleted from the repo
+      - name: Remove stale files from S3
+        run: |
+          aws s3 sync . s3://pointfree.space \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "PLAN.md" \
+            --exclude "README.md" \
+            --delete \
+            --size-only
