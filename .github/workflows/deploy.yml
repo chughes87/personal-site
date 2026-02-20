@@ -11,10 +11,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate HTML
-        run: |
-          sudo apt-get install -y tidy
-          # tidy exits 2 on errors, 1 on warnings — fail only on errors
-          tidy -errors -quiet index.html; [ $? -lt 2 ]
+        run: npx --yes html-validate index.html
 
   deploy:
     runs-on: ubuntu-latest
