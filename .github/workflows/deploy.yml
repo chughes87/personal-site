@@ -41,13 +41,13 @@ jobs:
       # CSS/JS — short TTL (no content-hash filenames, so keep low)
       - name: Upload CSS and JS (5 min cache)
         run: |
-          for f in *.css; do
+          for f in src/*.css; do
             [ -f "$f" ] || continue
             aws s3 cp "$f" "s3://pointfree.space/$f" \
               --cache-control "public, max-age=300" \
               --content-type "text/css"
           done
-          for f in *.js; do
+          for f in src/*.js; do
             [ -f "$f" ] || continue
             aws s3 cp "$f" "s3://pointfree.space/$f" \
               --cache-control "public, max-age=300" \
