@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a clean, fast, responsive personal portfolio site for Chris Hughes (chughes87).
+Build a clean, fast, responsive personal portfolio site for Charles Hughes (chughes87).
 
 ## Stack
 
