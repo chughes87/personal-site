@@ -25,6 +25,7 @@ Resources:
         AllowMethods:
           - GET
           - POST
+          - DELETE
           - OPTIONS
         AllowHeaders:
           - Content-Type
@@ -41,17 +42,26 @@ Resources:
           RATE_TABLE:     !Ref RateLimitsTable
           RATE_LIMIT:     '15'
           ALLOWED_ORIGIN: !Ref AllowedOrigin
+          VOICE_TABLE:    !Ref VoiceRoomTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref RateLimitsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VoiceRoomTable
       Events:
         Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref ChatApi
             Path:  /messages
+            Method: ANY
+        VoiceApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ChatApi
+            Path:  /voice/{proxy+}
             Method: ANY
 
   MessagesTable:
@@ -83,6 +93,25 @@ Resources:
           KeyType: HASH
       AttributeDefinitions:
         - AttributeName: pk
+          AttributeType: S
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  VoiceRoomTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: voice-room
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
           AttributeType: S
       TimeToLiveSpecification:
         AttributeName: ttl
