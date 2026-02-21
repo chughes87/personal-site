@@ -23,6 +23,7 @@ npm test          # run Jest test suite
 - `tests/src/main.test.js` — jsdom env, tests theme toggle logic
 - `tests/src/chat.test.js` — jsdom env, tests gate/chat UI + XSS prevention
 - CI runs tests on every push to main (must pass before deploy)
+- Include tests in the same PR as the code they cover — don't defer them to a separate PR
 
 ## Stack
 
