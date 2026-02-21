@@ -259,8 +259,8 @@ Add test cases for all 5 voice endpoints, following existing mock patterns
 
 ## Implementation Order
 
-1. `api/template.yaml` — add `VoiceRoomTable` + new route
-2. `api/handler.js` — implement 5 voice endpoints
+1. [x] `api/template.yaml` — add `VoiceRoomTable` + new route
+2. [x] `api/handler.js` — implement 5 voice endpoints
 3. `voice.html` — HTML structure
 4. `src/style.css` — voice styles (append)
 5. `src/voice.js` — WebRTC client
