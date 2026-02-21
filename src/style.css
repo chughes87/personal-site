@@ -521,6 +521,10 @@ a:hover { opacity: 0.8; }
   min-height: 0;
 }
 
+.chat-ui[hidden] {
+  display: none;
+}
+
 .chat-topbar {
   display: flex;
   align-items: center;
