@@ -32,6 +32,11 @@ function makeEvent(method, { qs = null, body = null } = {}) {
 
 beforeEach(() => {
   send.mockReset();
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('OPTIONS', () => {
