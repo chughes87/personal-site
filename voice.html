@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice &mdash; pointfree.space</title>
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="/" class="nav-logo">CH</a>
+      <ul class="nav-links">
+        <li><a href="/#about">About</a></li>
+        <li><a href="/#skills">Skills</a></li>
+        <li><a href="/#projects">Projects</a></li>
+        <li><a href="/#contact">Contact</a></li>
+        <li><a href="/chat.html">Chat</a></li>
+        <li><a href="/voice.html" aria-current="page">Voice</a></li>
+      </ul>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <span class="theme-icon">&#9790;</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="voice-page">
+    <div class="voice-layout">
+
+      <!-- Username gate -->
+      <div class="voice-gate" id="voiceGate" hidden>
+        <form class="voice-gate-form" id="voiceGateForm">
+          <h1 class="voice-gate-title">Join the voice room</h1>
+          <p class="voice-gate-sub">Pick a display name to get started.</p>
+          <div class="voice-gate-row">
+            <input type="text" id="voiceUsernameInput" maxlength="30"
+                   placeholder="your name" autocomplete="off"
+                   aria-label="Display name" required>
+            <button type="submit" class="btn btn-primary">Join</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Voice UI -->
+      <div class="voice-ui" id="voiceUI" hidden>
+        <div class="voice-topbar">
+          <h1 class="voice-room-name"># voice</h1>
+          <div class="voice-identity">
+            <span class="voice-you-label">You:</span>
+            <span class="voice-username" id="voiceDisplayName"></span>
+            <button type="button" class="voice-rename" id="voiceRenameBtn">change</button>
+          </div>
+        </div>
+
+        <div class="participant-grid" id="participantGrid" aria-label="Participants" aria-live="polite">
+        </div>
+
+        <div class="voice-controls">
+          <button type="button" class="btn btn-secondary" id="muteBtn" aria-pressed="false">
+            Mute
+          </button>
+          <button type="button" class="btn btn-danger" id="leaveBtn">
+            Leave
+          </button>
+        </div>
+
+        <p class="voice-status" id="voiceStatus" aria-live="polite"></p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>&copy; <span id="year"></span> Charles Hughes. Built with care.</p>
+      <div class="footer-links">
+        <a href="https://github.com/chughes87" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.linkedin.com/in/charles-hughes-7a818618/" target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Set this to your API Gateway URL after running: sam deploy -->
+  <script>window.VOICE_API_BASE = 'https://TODO.execute-api.us-west-1.amazonaws.com';</script>
+  <script src="src/main.js"></script>
+  <script src="src/voice.js"></script>
+</body>
+</html>
