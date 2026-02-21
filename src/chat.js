@@ -179,9 +179,9 @@ messageInput.addEventListener('input', () => {
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
-const saved = getUsername();
-if (saved) {
-  showChat(saved);
+const savedUsername = getUsername();
+if (savedUsername) {
+  showChat(savedUsername);
 } else {
   showGate();
 }
