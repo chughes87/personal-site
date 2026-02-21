@@ -14,9 +14,41 @@ Build a clean, fast, responsive personal portfolio site for Charles Hughes (chug
 
 - [ ] Verify / recreate IAM OIDC provider (see AWS account section)
 - [ ] Route 53 — Alias A record for `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
-- [ ] Deploy chat SAM stack: `cd api && sam build && sam deploy --guided --stack-name personal-site-chat --region us-west-1`
-- [ ] After SAM deploy: paste the API Gateway URL output into `chat.html` as `window.CHAT_API_BASE`
+- [ ] Add IAM policies to `github-actions-personal-site` role (see First-time setup below)
+- [ ] Run `Deploy Chat API` workflow → copy printed URL → add `CHAT_API_URL` GitHub secret
 - [ ] Add Experience section to portfolio (work history from resume not yet on the page)
+
+## First-time setup — Chat API
+
+### 1 — IAM: attach these policies to `github-actions-personal-site`
+
+AWS Console → IAM → Roles → `github-actions-personal-site` → Attach policies:
+
+| Policy | Purpose |
+|--------|---------|
+| `AWSCloudFormationFullAccess` | SAM uses CloudFormation |
+| `AWSLambda_FullAccess` | Create/update Lambda function |
+| `AmazonDynamoDBFullAccess` | Create DynamoDB tables |
+| `AmazonAPIGatewayAdministrator` | Create HTTP API |
+| `IAMFullAccess` | SAM creates the Lambda execution role |
+| `AmazonS3FullAccess` | SAM `--resolve-s3` needs its own artifact bucket |
+
+### 2 — Deploy the SAM stack
+
+Trigger the **Deploy Chat API** workflow in GitHub Actions (Actions tab → Deploy Chat API →
+Run workflow). On success the "Print API URL" step shows a notice with the full URL, e.g.:
+`https://abc123.execute-api.us-west-1.amazonaws.com`
+
+### 3 — Add the GitHub secret
+
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+- Name: `CHAT_API_URL`
+- Value: the URL from step 2
+
+### 4 — Redeploy the site
+
+Push any change to `main` (or re-run `Deploy to S3`). The deploy workflow substitutes
+`CHAT_API_URL` into `chat.html` before uploading to S3. The chat page is now live.
 
 ## AWS account
 
@@ -81,8 +113,9 @@ personal-site/
 10. [x] GitHub secret `AWS_ROLE_ARN` added to repo
 11. [x] `.github/workflows/deploy.yml` — HTML validation + S3 deploy with cache headers
 12. [ ] Route 53 — Alias A record `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
-13. [ ] SAM deploy — chat API stack in us-west-1
-14. [ ] Update `chat.html` with real API Gateway URL
+13. [x] `deploy-api.yml` — GitHub Actions workflow for SAM deploy (auto-triggered on `api/**` or manual)
+14. [x] `deploy.yml` — injects `CHAT_API_URL` secret into `chat.html` before S3 upload
+15. [ ] Run first SAM deploy + add `CHAT_API_URL` secret (see First-time setup above)
 
 ## AWS Hosting Architecture
 
