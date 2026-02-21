@@ -1,0 +1,52 @@
+name: Deploy Chat API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['api/**']
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-1
+
+      - name: Install SAM CLI
+        run: pip install aws-sam-cli
+
+      - name: Build
+        working-directory: api
+        run: sam build
+
+      - name: Deploy
+        working-directory: api
+        run: |
+          sam deploy \
+            --stack-name personal-site-chat \
+            --region us-west-1 \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides AllowedOrigin=http://pointfree.space
+
+      - name: Print API URL
+        run: |
+          URL=$(aws cloudformation describe-stacks \
+            --stack-name personal-site-chat \
+            --region us-west-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+            --output text)
+          echo "API_URL=$URL"
+          echo "::notice title=API URL::$URL"
+          echo "Next step: add this as CHAT_API_URL in GitHub repo → Settings → Secrets → New repository secret"
