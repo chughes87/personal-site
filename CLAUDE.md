@@ -1,5 +1,14 @@
 # Claude Notes
 
+## Workflow
+
+- Work in small, focused increments — each task gets its own PR
+- Before starting any multi-step task, add it to `PLAN.md` as a checklist and keep it updated as you go
+- Check `PLAN.md` at the start of each session to see if there is in-progress work to continue
+- If a task turns out to be large, break it into smaller sub-tasks in `PLAN.md` before proceeding
+- Mark items `[x]` in `PLAN.md` as they are completed so other agents can pick up where you left off
+- PRs should be small and focused — one logical change per PR, targeting `main`
+
 ## Commands
 
 ```bash
