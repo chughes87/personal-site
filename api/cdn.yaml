@@ -33,7 +33,7 @@ Resources:
         Origins:
           - Id: S3Website
             # S3 static website endpoint (HTTP only — CloudFront adds HTTPS in front)
-            DomainName: pointfree.space.s3-website-us-west-2.amazonaws.com
+            DomainName: pointfree.space.s3-website-us-west-1.amazonaws.com
             CustomOriginConfig:
               HTTPPort: 80
               OriginProtocolPolicy: http-only

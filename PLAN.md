@@ -56,7 +56,7 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 ### 4 — Update Route 53
 
 Route 53 → Hosted zone `pointfree.space` → A record for `pointfree.space`:
-- Change alias target from `s3-website-us-west-2.amazonaws.com`
+- Change alias target from `s3-website-us-west-1.amazonaws.com`
   to the `CloudFrontDomain` value from step 2 (choose **Alias to CloudFront distribution**)
 
 ### 5 — Redeploy the chat/voice API stack
@@ -94,7 +94,7 @@ AWS Console → IAM → Roles → `github-actions-personal-site` → Attach poli
 
 Trigger the **Deploy Chat API** workflow in GitHub Actions (Actions tab → Deploy Chat API →
 Run workflow). On success the "Print API URL" step shows a notice with the full URL, e.g.:
-`https://abc123.execute-api.us-west-2.amazonaws.com`
+`https://abc123.execute-api.us-west-1.amazonaws.com`
 
 ### 3 — Add the GitHub secret
 
@@ -111,7 +111,7 @@ Push any change to `main` (or re-run `Deploy to S3`). The deploy workflow substi
 
 - Account ID: `697845623602`
 - IAM user: `windows-dev`
-- S3 bucket: `pointfree.space` (us-west-2), static website hosting enabled, public read policy set
+- S3 bucket: `pointfree.space` (us-west-1), static website hosting enabled, public read policy set
 - IAM role ARN: `arn:aws:iam::697845623602:role/github-actions-personal-site`
 - GitHub secret `AWS_ROLE_ARN` added to repo
 
@@ -176,7 +176,7 @@ personal-site/
 4. [x] `main.js` — theme toggle, dynamic year
 5. [x] `chat.html` + `chat.js` — dedicated chat page
 6. [x] `api/handler.js` + `api/template.yaml` — chat Lambda + SAM template
-7. [x] AWS infrastructure — S3 bucket (us-west-2), static website hosting, public read policy
+7. [x] AWS infrastructure — S3 bucket (us-west-1), static website hosting, public read policy
 8. [ ] IAM OIDC provider — verify exists (see note above)
 9. [x] IAM role `github-actions-personal-site` — S3 deploy permissions attached
 10. [x] GitHub secret `AWS_ROLE_ARN` added to repo

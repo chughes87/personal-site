@@ -19,7 +19,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-west-2
+          aws-region: us-west-1
 
       - name: Install SAM CLI
         run: pip install aws-sam-cli
@@ -33,7 +33,7 @@ jobs:
         run: |
           sam deploy \
             --stack-name personal-site-chat \
-            --region us-west-2 \
+            --region us-west-1 \
             --resolve-s3 \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
@@ -44,7 +44,7 @@ jobs:
         run: |
           URL=$(aws cloudformation describe-stacks \
             --stack-name personal-site-chat \
-            --region us-west-2 \
+            --region us-west-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
             --output text)
           echo "API_URL=$URL"

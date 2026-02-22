@@ -34,5 +34,5 @@ npm test          # run Jest test suite
 
 ## Deploy
 
-- Push to `main` → GitHub Actions → validate HTML + run tests → sync to S3 (`pointfree.space`, us-west-2)
+- Push to `main` → GitHub Actions → validate HTML + run tests → sync to S3 (`pointfree.space`, us-west-1)
 - `api/`, `tests/`, `node_modules/`, `package*.json` are excluded from S3 sync
