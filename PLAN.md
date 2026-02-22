@@ -10,13 +10,74 @@ Build a clean, fast, responsive personal portfolio site for Charles Hughes (chug
 - Hosted on AWS at **pointfree.space**
 - GitHub repo: https://github.com/chughes87/personal-site
 
-## Open TODOs
+## Manual steps to complete (in order)
 
-- [ ] Verify / recreate IAM OIDC provider (see AWS account section)
-- [ ] Route 53 — Alias A record for `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
-- [ ] Add IAM policies to `github-actions-personal-site` role (see First-time setup below)
-- [ ] Run `Deploy Chat API` workflow → copy printed URL → add `CHAT_API_URL` GitHub secret
-- [ ] Add Experience section to portfolio (work history from resume not yet on the page)
+- [ ] **1. Verify IAM OIDC provider** — check AWS Console → IAM → Identity providers for
+  `token.actions.githubusercontent.com`; recreate if missing (see AWS account section below)
+- [ ] **2. Attach IAM policies** for CDN deploy to `github-actions-personal-site` role
+  (see "IAM permissions needed for CDN deploy" under First-time setup — HTTPS)
+- [ ] **3. Create ACM certificate** — AWS Certificate Manager in `us-east-1`, domain `pointfree.space`,
+  DNS validation (see First-time setup — HTTPS)
+- [ ] **4. Deploy CDN** — run the **Deploy CDN** GitHub Actions workflow with the cert ARN from step 3
+- [ ] **5. Add `CLOUDFRONT_DISTRIBUTION_ID` secret** — copy distribution ID from workflow output
+- [ ] **6. Update Route 53** — change A alias for `pointfree.space` from S3 endpoint to CloudFront domain
+- [ ] **7. Push to `main`** — triggers deploy and CloudFront cache invalidation
+
+## First-time setup — HTTPS (CloudFront)
+
+WebRTC (voice chat) requires HTTPS. The site currently serves over HTTP from S3.
+This one-time setup adds CloudFront in front of S3 to enable HTTPS.
+
+### 1 — Create ACM certificate (us-east-1)
+
+CloudFront certificates **must** be in `us-east-1`:
+
+```
+AWS Console → Certificate Manager → switch region to us-east-1
+→ Request a public certificate
+→ Domain: pointfree.space
+→ Validation: DNS
+→ Copy the CNAME name/value shown and add it to Route 53
+→ Wait for status to show "Issued" (usually < 5 min)
+→ Copy the certificate ARN
+```
+
+### 2 — Run the Deploy CDN workflow
+
+GitHub Actions → **Deploy CDN (CloudFront + HTTPS)** → Run workflow →
+paste the certificate ARN → Run.
+
+On success the "Print outputs" step shows:
+- `CloudFrontDistributionId` — e.g. `E1ABCD2EFGH3IJ`
+- `CloudFrontDomain` — e.g. `d1234abcd.cloudfront.net`
+
+### 3 — Add GitHub secret
+
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+- Name: `CLOUDFRONT_DISTRIBUTION_ID`
+- Value: the distribution ID from step 2
+
+### 4 — Update Route 53
+
+Route 53 → Hosted zone `pointfree.space` → A record for `pointfree.space`:
+- Change alias target from `s3-website-us-west-1.amazonaws.com`
+  to the `CloudFrontDomain` value from step 2 (choose **Alias to CloudFront distribution**)
+
+### 5 — Redeploy the chat/voice API stack
+
+The `AllowedOrigin` in `api/template.yaml` is now `https://pointfree.space`.
+Re-run the **Deploy Chat API** workflow so Lambda's CORS headers use HTTPS.
+
+### IAM permissions needed for CDN deploy
+
+Add to `github-actions-personal-site` role:
+
+| Policy | Purpose |
+|--------|---------|
+| `CloudFrontFullAccess` | Create/update distribution |
+| `AWSCertificateManagerReadOnly` | CloudFormation reads cert status |
+
+---
 
 ## First-time setup — Chat API
 
@@ -124,10 +185,11 @@ personal-site/
 9. [x] IAM role `github-actions-personal-site` — S3 deploy permissions attached
 10. [x] GitHub secret `AWS_ROLE_ARN` added to repo
 11. [x] `.github/workflows/deploy.yml` — HTML validation + S3 deploy with cache headers
-12. [ ] Route 53 — Alias A record `pointfree.space` → `s3-website-us-west-1.amazonaws.com`
+12. [ ] Route 53 — Alias A record `pointfree.space` → CloudFront domain (after step 16)
 13. [x] `deploy-api.yml` — GitHub Actions workflow for SAM deploy (auto-triggered on `api/**` or manual)
 14. [x] `deploy.yml` — injects `CHAT_API_URL` secret into `chat.html` before S3 upload
 15. [ ] Run first SAM deploy + add `CHAT_API_URL` secret (see First-time setup above)
+16. [ ] HTTPS — create ACM cert, run Deploy CDN workflow, update Route 53 (see First-time setup — HTTPS)
 
 ## AWS Hosting Architecture
 
@@ -144,7 +206,7 @@ Browser (chat page)
               └─► DynamoDB: chat-rate-limits (ip#hour, TTL 2 hours)
 ```
 
-> No CloudFront for now — add later for HTTPS. S3 static hosting is HTTP only.
+> HTTPS via CloudFront — see First-time setup below. S3 static hosting is HTTP only; CloudFront adds HTTPS in front.
 
 ## GitHub Actions CD
 

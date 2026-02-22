@@ -89,6 +89,11 @@ voiceRenameBtn.addEventListener('click', () => {
 
 // ── Join / Leave ──────────────────────────────────────────────────────────────
 async function joinRoom() {
+  if (!window.isSecureContext) {
+    setStatus('Voice chat requires HTTPS. Please visit https://pointfree.space/voice.html');
+    return;
+  }
+
   if (!apiConfigured()) {
     setStatus('Voice API not configured yet.');
     return;

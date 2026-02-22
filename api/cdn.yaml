@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFront distribution for pointfree.space (HTTPS).
+  Deploy this stack to us-east-1 (required for ACM + CloudFront).
+
+  Pre-requisites:
+    1. Create an ACM certificate for pointfree.space in us-east-1 (console or CLI).
+    2. Validate it via DNS (add the CNAME record Route 53 shows you).
+    3. Pass the validated cert ARN as CertificateArn below.
+    4. After stack creation, update the Route 53 A alias for pointfree.space
+       to point to the CloudFrontDomain output value.
+    5. Add the CloudFrontDistributionId output value as GitHub secret
+       CLOUDFRONT_DISTRIBUTION_ID so deploy.yml can invalidate the cache.
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: >
+      ARN of an ACM certificate for pointfree.space validated in us-east-1.
+      Example: arn:aws:acm:us-east-1:697845623602:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+Resources:
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        # Redirect all HTTP to HTTPS
+        Aliases:
+          - pointfree.space
+        Origins:
+          - Id: S3Website
+            # S3 static website endpoint (HTTP only — CloudFront adds HTTPS in front)
+            DomainName: pointfree.space.s3-website-us-west-1.amazonaws.com
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: S3Website
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods:  [GET, HEAD]
+          Compress: true
+          # AWS managed policy: CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+
+Outputs:
+  CloudFrontDistributionId:
+    Value: !Ref Distribution
+    Description: Add this as GitHub secret CLOUDFRONT_DISTRIBUTION_ID
+
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+    Description: Update Route 53 A alias for pointfree.space to point here

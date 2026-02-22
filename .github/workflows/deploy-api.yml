@@ -38,7 +38,7 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides AllowedOrigin=http://pointfree.space
+            --parameter-overrides AllowedOrigin=https://pointfree.space
 
       - name: Print API URL
         run: |

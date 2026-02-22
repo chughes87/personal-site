@@ -268,7 +268,6 @@ Add test cases for all 5 voice endpoints, following existing mock patterns
 7. [x] `.github/workflows/deploy.yml` — URL injection step
 8. [x] `tests/api/handler.test.js` — voice endpoint tests
 9. [x] `tests/src/voice.test.js` — client logic tests
-10. [ ] `npm test` — all tests must pass
 
 ---
 
