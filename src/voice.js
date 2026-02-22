@@ -21,6 +21,7 @@ const participantGrid  = document.getElementById('participantGrid');
 const muteBtn          = document.getElementById('muteBtn');
 const leaveBtn         = document.getElementById('leaveBtn');
 const voiceStatus      = document.getElementById('voiceStatus');
+const audioUnblockBtn  = document.getElementById('audioUnblockBtn');
 
 // ── State ────────────────────────────────────────────────────────────────────
 let myClientId  = null;
@@ -51,6 +52,10 @@ function esc(str) {
 
 function setStatus(msg) {
   voiceStatus.textContent = msg;
+}
+
+function showAudioUnblockButton() {
+  audioUnblockBtn.hidden = false;
 }
 
 function apiConfigured() {
@@ -173,6 +178,13 @@ leaveBtn.addEventListener('click', () => {
   showGate();
 });
 
+audioUnblockBtn.addEventListener('click', () => {
+  for (const peer of Object.values(peers)) {
+    if (peer.audio) peer.audio.play().catch(() => {});
+  }
+  audioUnblockBtn.hidden = true;
+});
+
 // ── Mute ──────────────────────────────────────────────────────────────────────
 function applyMuteState() {
   if (!myStream) return;
@@ -251,10 +263,10 @@ function makePc(remoteId) {
 
   pc.ontrack = ({ streams }) => {
     const audio = document.createElement('audio');
-    audio.autoplay = true;
     audio.srcObject = streams[0];
     document.body.appendChild(audio);
     if (peers[remoteId]) peers[remoteId].audio = audio;
+    audio.play().catch(() => showAudioUnblockButton());
   };
 
   pc.oniceconnectionstatechange = () => {
@@ -392,9 +404,4 @@ function startSpeakingDetector() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-const savedUsername = getUsername();
-if (savedUsername) {
-  showVoiceUI(savedUsername);
-} else {
-  showGate();
-}
+showGate();

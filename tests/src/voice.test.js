@@ -15,6 +15,7 @@ const HTML = `
     <div id="participantGrid"></div>
     <button id="muteBtn" aria-pressed="false">Mute</button>
     <button id="leaveBtn">Leave</button>
+    <button id="audioUnblockBtn" hidden>Enable audio</button>
     <p id="voiceStatus"></p>
   </div>
 `;
@@ -68,6 +69,13 @@ beforeEach(() => {
     ok: true,
     json: jest.fn().mockResolvedValue({ clientId: 'c1', participants: [] }),
   });
+
+  // HTMLMediaElement.play — not implemented in jsdom; provide a no-op mock
+  Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
+    configurable: true,
+    writable: true,
+    value: jest.fn().mockResolvedValue(undefined),
+  });
 });
 
 afterEach(() => {
@@ -90,12 +98,12 @@ describe('initial display', () => {
     expect(document.getElementById('voiceUI').hidden).toBe(true);
   });
 
-  test('shows voiceUI and hides gate when username is saved', () => {
+  test('pre-fills username input and shows gate when username is saved', () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(API);
-    expect(document.getElementById('voiceUI').hidden).toBe(false);
-    expect(document.getElementById('voiceGate').hidden).toBe(true);
-    expect(document.getElementById('voiceDisplayName').textContent).toBe('alice');
+    expect(document.getElementById('voiceGate').hidden).toBe(false);
+    expect(document.getElementById('voiceUI').hidden).toBe(true);
+    expect(document.getElementById('voiceUsernameInput').value).toBe('alice');
   });
 });
 
@@ -144,6 +152,9 @@ describe('API not configured', () => {
   test('shows not-configured status and does not call fetch', async () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(''); // empty = not configured
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises();
     expect(fetch).not.toHaveBeenCalled();
     expect(document.getElementById('voiceStatus').textContent).toMatch(/not configured/i);
@@ -156,6 +167,9 @@ describe('mute button', () => {
   test('toggles aria-pressed and button text on click', async () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(5);
 
     const btn = document.getElementById('muteBtn');
@@ -178,6 +192,9 @@ describe('leave button', () => {
   test('returns to gate on click', async () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(5);
 
     expect(document.getElementById('voiceUI').hidden).toBe(false);
@@ -204,6 +221,9 @@ describe('XSS prevention', () => {
     });
 
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(5);
 
     const html = document.getElementById('participantGrid').innerHTML;
@@ -218,6 +238,9 @@ describe('joinRoom', () => {
   test('POSTs to /voice/join with correct body', async () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(3);
 
     expect(fetch).toHaveBeenCalledWith(
@@ -232,9 +255,103 @@ describe('joinRoom', () => {
   test('calls getUserMedia after successful join', async () => {
     localStorage.setItem('voice_username', 'alice');
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(5);
 
     expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({ audio: true });
+  });
+});
+
+// ── ontrack ──────────────────────────────────────────────────────────────────
+
+describe('ontrack', () => {
+  test('calls audio.play() when a remote track arrives', async () => {
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState: 'complete',
+        localDescription: { sdp: 'mock-sdp' },
+        addTrack: jest.fn(),
+        createOffer: jest.fn().mockResolvedValue({}),
+        setLocalDescription: jest.fn().mockResolvedValue(),
+        setRemoteDescription: jest.fn().mockResolvedValue(),
+        createAnswer: jest.fn().mockResolvedValue({}),
+        close: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      };
+      return capturedPc;
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c2', username: 'bob' }],
+      }),
+    });
+
+    loadVoice(API);
+    // Trigger join via form submit (user-gesture path)
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    expect(capturedPc.ontrack).toBeInstanceOf(Function);
+
+    const mockStream = {};
+    capturedPc.ontrack({ streams: [mockStream] });
+
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+  });
+
+  test('shows audioUnblockBtn when audio.play() is rejected', async () => {
+    Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      writable: true,
+      value: jest.fn().mockRejectedValue(new Error('autoplay blocked')),
+    });
+
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState: 'complete',
+        localDescription: { sdp: 'mock-sdp' },
+        addTrack: jest.fn(),
+        createOffer: jest.fn().mockResolvedValue({}),
+        setLocalDescription: jest.fn().mockResolvedValue(),
+        setRemoteDescription: jest.fn().mockResolvedValue(),
+        createAnswer: jest.fn().mockResolvedValue({}),
+        close: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      };
+      return capturedPc;
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c2', username: 'bob' }],
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    capturedPc.ontrack({ streams: [{}] });
+    await flushPromises(3); // let the rejected promise settle
+
+    expect(document.getElementById('audioUnblockBtn').hidden).toBe(false);
   });
 });
 
@@ -254,6 +371,9 @@ describe('createOffer', () => {
     });
 
     loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises(10);
 
     const signalCall = fetch.mock.calls.find(
