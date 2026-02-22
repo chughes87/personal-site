@@ -14,15 +14,14 @@ Build a clean, fast, responsive personal portfolio site for Charles Hughes (chug
 
 - [ ] **1. Verify IAM OIDC provider** — check AWS Console → IAM → Identity providers for
   `token.actions.githubusercontent.com`; recreate if missing (see AWS account section below)
-- [ ] **2. Attach IAM policies** to `github-actions-personal-site` role (see First-time setup — Chat API)
-- [ ] **3. Deploy Chat API** — run the **Deploy Chat API** GitHub Actions workflow → copy the printed URL
-- [ ] **4. Add `CHAT_API_URL` secret** — GitHub repo → Settings → Secrets → add the URL from step 3
-- [ ] **5. Create ACM certificate** — AWS Certificate Manager in `us-east-1`, domain `pointfree.space`,
+- [ ] **2. Attach IAM policies** for CDN deploy to `github-actions-personal-site` role
+  (see "IAM permissions needed for CDN deploy" under First-time setup — HTTPS)
+- [ ] **3. Create ACM certificate** — AWS Certificate Manager in `us-east-1`, domain `pointfree.space`,
   DNS validation (see First-time setup — HTTPS)
-- [ ] **6. Deploy CDN** — run the **Deploy CDN** GitHub Actions workflow with the cert ARN from step 5
-- [ ] **7. Add `CLOUDFRONT_DISTRIBUTION_ID` secret** — copy distribution ID from workflow output
-- [ ] **8. Update Route 53** — change A alias for `pointfree.space` from S3 endpoint to CloudFront domain
-- [ ] **9. Push to `main`** — triggers deploy, injects API URL into HTML, invalidates CloudFront cache
+- [ ] **4. Deploy CDN** — run the **Deploy CDN** GitHub Actions workflow with the cert ARN from step 3
+- [ ] **5. Add `CLOUDFRONT_DISTRIBUTION_ID` secret** — copy distribution ID from workflow output
+- [ ] **6. Update Route 53** — change A alias for `pointfree.space` from S3 endpoint to CloudFront domain
+- [ ] **7. Push to `main`** — triggers deploy and CloudFront cache invalidation
 
 ## First-time setup — HTTPS (CloudFront)
 
