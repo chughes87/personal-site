@@ -76,6 +76,9 @@ beforeEach(() => {
     writable: true,
     value: jest.fn().mockResolvedValue(undefined),
   });
+
+  // isSecureContext — jsdom defaults to false (http://localhost); voice.js requires HTTPS
+  Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
 });
 
 afterEach(() => {
@@ -138,7 +141,10 @@ describe('insecure context', () => {
   test('shows HTTPS error and does not call fetch when not in secure context', async () => {
     localStorage.setItem('voice_username', 'alice');
     Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
-    loadVoice('https://api.example.com');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
     await flushPromises();
     expect(fetch).not.toHaveBeenCalled();
     expect(document.getElementById('voiceStatus').textContent).toMatch(/https/i);
