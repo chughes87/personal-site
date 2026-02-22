@@ -122,4 +122,4 @@ Outputs:
     Value: !Sub 'https://${ChatApi}.execute-api.${AWS::Region}.amazonaws.com'
     Description: >
       Paste this URL into chat.html as window.CHAT_API_BASE after deployment.
-      Deploy with: sam build && sam deploy --guided --stack-name personal-site-chat --region us-west-1
+      Deploy with: sam build && sam deploy --guided --stack-name personal-site-chat --region us-west-2

@@ -26,14 +26,14 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-west-1
+          aws-region: us-west-2
 
       - name: Inject API URL into chat.html
         env:
           CHAT_API_URL: ${{ secrets.CHAT_API_URL }}
         run: |
           if [ -n "$CHAT_API_URL" ]; then
-            sed -i "s|https://TODO.execute-api.us-west-1.amazonaws.com|$CHAT_API_URL|" chat.html
+            sed -i "s|https://TODO.execute-api.us-west-2.amazonaws.com|$CHAT_API_URL|" chat.html
           fi
 
       - name: Inject API URL into voice.html
@@ -41,7 +41,7 @@ jobs:
           CHAT_API_URL: ${{ secrets.CHAT_API_URL }}
         run: |
           if [ -n "$CHAT_API_URL" ]; then
-            sed -i "s|https://TODO.execute-api.us-west-1.amazonaws.com|$CHAT_API_URL|" voice.html
+            sed -i "s|https://TODO.execute-api.us-west-2.amazonaws.com|$CHAT_API_URL|" voice.html
           fi
 
       # HTML files must never be served stale
