@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate HTML
-        run: npx --yes html-validate index.html chat.html
+        run: npx --yes html-validate index.html chat.html voice.html
 
   deploy:
     runs-on: ubuntu-latest
@@ -34,6 +34,14 @@ jobs:
         run: |
           if [ -n "$CHAT_API_URL" ]; then
             sed -i "s|https://TODO.execute-api.us-west-1.amazonaws.com|$CHAT_API_URL|" chat.html
+          fi
+
+      - name: Inject API URL into voice.html
+        env:
+          CHAT_API_URL: ${{ secrets.CHAT_API_URL }}
+        run: |
+          if [ -n "$CHAT_API_URL" ]; then
+            sed -i "s|https://TODO.execute-api.us-west-1.amazonaws.com|$CHAT_API_URL|" voice.html
           fi
 
       # HTML files must never be served stale
