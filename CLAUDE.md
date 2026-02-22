@@ -36,3 +36,4 @@ npm test          # run Jest test suite
 
 - Push to `main` → GitHub Actions → validate HTML + run tests → sync to S3 (`pointfree.space`, us-west-1)
 - `api/`, `tests/`, `node_modules/`, `package*.json` are excluded from S3 sync
+- **Never try to run the server locally** — Node.js is not installed on this machine; CI is the only way to run tests or serve the site
