@@ -266,9 +266,9 @@ Add test cases for all 5 voice endpoints, following existing mock patterns
 5. [x] `src/voice.js` — WebRTC client
 6. [x] `index.html` + `chat.html` — add nav link
 7. [x] `.github/workflows/deploy.yml` — URL injection step
-8. `tests/api/handler.test.js` — voice endpoint tests
-9. `tests/src/voice.test.js` — client logic tests
-10. `npm test` — all tests must pass
+8. [x] `tests/api/handler.test.js` — voice endpoint tests
+9. [x] `tests/src/voice.test.js` — client logic tests
+10. [ ] `npm test` — all tests must pass
 
 ---
 

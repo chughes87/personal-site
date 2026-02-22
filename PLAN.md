@@ -72,6 +72,7 @@ Push any change to `main` (or re-run `Deploy to S3`). The deploy workflow substi
 |------|---------|
 | `index.html` | Hero, About, Skills, Projects, Contact, Footer |
 | `chat.html` | Real-time human-to-human chat (polls every 3 s) |
+| `voice.html` | WebRTC voice chat room (max 10 participants) |
 
 ## Features
 
@@ -80,6 +81,7 @@ Push any change to `main` (or re-run `Deploy to S3`). The deploy workflow substi
 - Responsive layout (mobile-first)
 - No external dependencies (frontend)
 - Chat: per-IP rate limiting (15 msg/hr), 7-day message TTL, 500-char limit
+- Voice: WebRTC peer-to-peer audio, signalling via Lambda/DynamoDB, max 10 participants
 
 ## File Structure
 
@@ -87,12 +89,22 @@ Push any change to `main` (or re-run `Deploy to S3`). The deploy workflow substi
 personal-site/
 ├── index.html              # portfolio page
 ├── chat.html               # chat page — update window.CHAT_API_BASE after SAM deploy
-├── style.css               # all styles (design tokens, dark mode, chat UI)
-├── main.js                 # theme toggle, dynamic year (used on all pages)
-├── chat.js                 # chat polling, send, username management
+├── voice.html              # voice room page — update window.VOICE_API_BASE after SAM deploy
+├── style.css               # all styles (design tokens, dark mode, chat UI, voice UI)
+├── src/
+│   ├── main.js             # theme toggle, dynamic year (used on all pages)
+│   ├── chat.js             # chat polling, send, username management
+│   └── voice.js            # WebRTC voice — join/leave/signal/heartbeat/mute
 ├── api/
-│   ├── handler.js          # Lambda — GET/POST /messages + rate limiting
+│   ├── handler.js          # Lambda — chat + voice endpoints, rate limiting
 │   └── template.yaml       # SAM — Lambda + HTTP API + DynamoDB tables
+├── tests/
+│   ├── api/
+│   │   └── handler.test.js # Node env — all Lambda handler routes
+│   └── src/
+│       ├── main.test.js    # jsdom — theme toggle logic
+│       ├── chat.test.js    # jsdom — gate/chat UI + XSS prevention
+│       └── voice.test.js   # jsdom — gate/join/mute/leave/XSS + WebRTC mocks
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml      # validates HTML, deploys static files to S3
