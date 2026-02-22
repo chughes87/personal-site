@@ -1,0 +1,44 @@
+name: Deploy CDN (CloudFront + HTTPS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      certificate_arn:
+        description: >
+          ACM certificate ARN for pointfree.space (must be in us-east-1).
+          Create it first: AWS Console → Certificate Manager (us-east-1) → Request → DNS validation.
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          # CloudFront + ACM must be deployed in us-east-1
+          aws-region: us-east-1
+
+      - name: Deploy CloudFront stack
+        run: |
+          aws cloudformation deploy \
+            --template-file api/cdn.yaml \
+            --stack-name personal-site-cdn \
+            --parameter-overrides CertificateArn="${{ inputs.certificate_arn }}" \
+            --region us-east-1 \
+            --no-fail-on-empty-changeset
+
+      - name: Print outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name personal-site-cdn \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs' \
+            --output table

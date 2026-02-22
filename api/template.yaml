@@ -5,8 +5,8 @@ Description: Chat API for pointfree.space
 Parameters:
   AllowedOrigin:
     Type: String
-    Default: 'http://pointfree.space'
-    Description: CORS allowed origin. Update to https://pointfree.space once CloudFront/HTTPS is set up.
+    Default: 'https://pointfree.space'
+    Description: CORS allowed origin.
 
 Globals:
   Function:

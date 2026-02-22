@@ -91,3 +91,15 @@ jobs:
             --exclude "README.md" \
             --delete \
             --size-only
+
+      # Invalidate CloudFront so the new files are served immediately.
+      # Only runs once CLOUDFRONT_DISTRIBUTION_ID secret is set (after deploy-cdn.yml is run).
+      - name: Invalidate CloudFront cache
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+              --paths "/*"
+          fi

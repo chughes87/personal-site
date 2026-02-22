@@ -124,6 +124,20 @@ describe('gate form', () => {
   });
 });
 
+// ── Insecure context ─────────────────────────────────────────────────────────
+
+describe('insecure context', () => {
+  test('shows HTTPS error and does not call fetch when not in secure context', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
+    loadVoice('https://api.example.com');
+    await flushPromises();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(document.getElementById('voiceStatus').textContent).toMatch(/https/i);
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+  });
+});
+
 // ── API not configured ───────────────────────────────────────────────────────
 
 describe('API not configured', () => {
