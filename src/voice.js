@@ -183,6 +183,8 @@ audioUnblockBtn.addEventListener('click', () => {
     if (peer.audio) peer.audio.play().catch(() => {});
   }
   audioUnblockBtn.hidden = true;
+  setStatus('Audio enabled');
+  setTimeout(() => setStatus('Connected.'), 2000);
 });
 
 // ── Mute ──────────────────────────────────────────────────────────────────────

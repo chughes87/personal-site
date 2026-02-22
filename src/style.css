@@ -866,6 +866,17 @@ a:hover { opacity: 0.8; }
   color: #fff;
 }
 
+.btn-warn {
+  background: transparent;
+  color: #9a6700;
+  border-color: #d4a017;
+}
+
+[data-theme="dark"] .btn-warn {
+  color: #e3b341;
+  border-color: #9e6a03;
+}
+
 /* -- Status -- */
 .voice-status {
   font-size: 0.8125rem;
