@@ -729,6 +729,16 @@ a:hover { opacity: 0.8; }
   border-color: var(--color-accent);
 }
 
+.voice-gate-error {
+  color: #cf222e;
+  font-size: 0.875rem;
+  min-height: 1.25em;
+}
+
+[data-theme="dark"] .voice-gate-error {
+  color: #f85149;
+}
+
 /* -- Voice UI -- */
 .voice-ui {
   flex: 1;

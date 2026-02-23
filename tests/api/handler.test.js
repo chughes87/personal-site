@@ -197,6 +197,14 @@ describe('POST /voice/join', () => {
     send.mockResolvedValueOnce({ Items: fullRoom });
     const res = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
     expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toMatch(/full/i);
+  });
+
+  test('returns 409 with "Name already taken" when username is in use (case-insensitive)', async () => {
+    send.mockResolvedValueOnce({ Items: [{ clientId: 'x1', username: 'Alice' }] });
+    const res = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toMatch(/taken/i);
   });
 
   test('returns 200 with clientId and participants on success', async () => {
@@ -211,6 +219,36 @@ describe('POST /voice/join', () => {
     const body = JSON.parse(res.body);
     expect(typeof body.clientId).toBe('string');
     expect(body.participants).toEqual([{ clientId: 'abc', username: 'alice' }]);
+  });
+
+  test('allows rejoin when previousClientId matches the conflicting participant', async () => {
+    send
+      .mockResolvedValueOnce({ Items: [{ clientId: 'prev-id', username: 'alice' }] })  // capacity check
+      .mockResolvedValueOnce({})                                                         // DeleteCommand: evict stale
+      .mockResolvedValueOnce({})                                                         // PutCommand: new record
+      .mockResolvedValueOnce({ Items: [{ clientId: 'new-id', username: 'alice' }] });   // return list
+
+    const res = await handler(makeVoiceEvent('POST', 'join', {
+      body: { username: 'alice', previousClientId: 'prev-id' },
+    }));
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(typeof body.clientId).toBe('string');
+    // Verify DeleteCommand was called with the stale participant's key
+    const deleteCall = send.mock.calls[1][0];
+    expect(deleteCall.Key).toEqual({ pk: 'room#main', sk: 'participant#prev-id' });
+  });
+
+  test('returns 409 when previousClientId does not match the conflicting participant', async () => {
+    send.mockResolvedValueOnce({ Items: [{ clientId: 'other-id', username: 'alice' }] });
+
+    const res = await handler(makeVoiceEvent('POST', 'join', {
+      body: { username: 'alice', previousClientId: 'wrong-id' },
+    }));
+
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toMatch(/taken/i);
   });
 });
 

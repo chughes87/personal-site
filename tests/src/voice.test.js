@@ -7,6 +7,7 @@ const HTML = `
     <form id="voiceGateForm">
       <input id="voiceUsernameInput" />
       <button type="submit">Join</button>
+      <p id="voiceGateError"></p>
     </form>
   </div>
   <div id="voiceUI" hidden>
@@ -164,6 +165,48 @@ describe('API not configured', () => {
     await flushPromises();
     expect(fetch).not.toHaveBeenCalled();
     expect(document.getElementById('voiceStatus').textContent).toMatch(/not configured/i);
+  });
+});
+
+// ── Name conflict ────────────────────────────────────────────────────────────
+
+describe('name conflict', () => {
+  test('shows name-taken error in gate when join returns 409 with Name already taken', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: jest.fn().mockResolvedValue({ error: 'Name already taken' }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('voiceGate').hidden).toBe(false);
+    expect(document.getElementById('voiceUI').hidden).toBe(true);
+    expect(document.getElementById('voiceGateError').textContent).toMatch(/different/i);
+  });
+
+  test('shows room-full error in gate when join returns 409 with Room is full', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: jest.fn().mockResolvedValue({ error: 'Room is full' }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('voiceGate').hidden).toBe(false);
+    expect(document.getElementById('voiceUI').hidden).toBe(true);
+    expect(document.getElementById('voiceGateError').textContent).toMatch(/full/i);
   });
 });
 
@@ -358,6 +401,69 @@ describe('ontrack', () => {
     await flushPromises(3); // let the rejected promise settle
 
     expect(document.getElementById('audioUnblockBtn').hidden).toBe(false);
+  });
+});
+
+// ── Session persistence ───────────────────────────────────────────────────────
+
+describe('session persistence', () => {
+  test('saves session to localStorage on successful join', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const session = JSON.parse(localStorage.getItem('voice_session'));
+    expect(session).not.toBeNull();
+    expect(session.username).toBe('alice');
+    expect(typeof session.clientId).toBe('string');
+  });
+
+  test('sends previousClientId when stored session username matches', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    localStorage.setItem('voice_session', JSON.stringify({ clientId: 'prev-id', username: 'alice' }));
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const joinCall = fetch.mock.calls.find(([url]) => url === `${API}/voice/join`);
+    expect(joinCall).toBeDefined();
+    const body = JSON.parse(joinCall[1].body);
+    expect(body.previousClientId).toBe('prev-id');
+  });
+
+  test('does not send previousClientId when stored session username differs', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    localStorage.setItem('voice_session', JSON.stringify({ clientId: 'prev-id', username: 'bob' }));
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const joinCall = fetch.mock.calls.find(([url]) => url === `${API}/voice/join`);
+    expect(joinCall).toBeDefined();
+    const body = JSON.parse(joinCall[1].body);
+    expect(body.previousClientId).toBeUndefined();
+  });
+
+  test('clears session from localStorage on leave', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    // Session should be saved now
+    expect(localStorage.getItem('voice_session')).not.toBeNull();
+
+    document.getElementById('leaveBtn').click();
+    expect(localStorage.getItem('voice_session')).toBeNull();
   });
 });
 
