@@ -330,6 +330,112 @@ describe('joinRoom', () => {
   });
 });
 
+// ── Connection status ─────────────────────────────────────────────────────────
+
+describe('connection status', () => {
+  test('status bar shows "In room." after joining (not "Connected.")', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('voiceStatus').textContent).toBe('In room.');
+  });
+
+  test('remote participant card shows "connecting…" status initially', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    const connEl = document.getElementById('conn-c2');
+    expect(connEl).not.toBeNull();
+    expect(connEl.textContent).toBe('connecting…');
+  });
+
+  test('own card does not show a connection status element', async () => {
+    localStorage.setItem('voice_username', 'alice');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('conn-c1')).toBeNull();
+  });
+
+  test('ICE "connected" state updates card status to "connected"', async () => {
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState:          'complete',
+        iceConnectionState:         'new',
+        localDescription:           { sdp: 'mock-sdp' },
+        addTrack:                   jest.fn(),
+        createOffer:                jest.fn().mockResolvedValue({}),
+        setLocalDescription:        jest.fn().mockResolvedValue(),
+        setRemoteDescription:       jest.fn().mockResolvedValue(),
+        createAnswer:               jest.fn().mockResolvedValue({}),
+        close:                      jest.fn(),
+        addEventListener:           jest.fn(),
+        removeEventListener:        jest.fn(),
+        oniceconnectionstatechange: null,
+      };
+      return capturedPc;
+    });
+
+    localStorage.setItem('voice_username', 'alice');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    // Simulate ICE reaching connected
+    capturedPc.iceConnectionState = 'connected';
+    capturedPc.oniceconnectionstatechange();
+
+    const bobCard = document.getElementById('card-c2');
+    const connEl  = document.getElementById('conn-c2');
+    expect(connEl.textContent).toBe('connected');
+    expect(bobCard.classList.contains('participant-card--connected')).toBe(true);
+  });
+});
+
 // ── ontrack ──────────────────────────────────────────────────────────────────
 
 describe('ontrack', () => {
