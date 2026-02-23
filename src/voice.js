@@ -56,6 +56,7 @@ function setStatus(msg) {
 
 function showAudioUnblockButton() {
   audioUnblockBtn.hidden = false;
+  setStatus('Audio blocked by browser — click "Enable audio" to hear others');
 }
 
 function apiConfigured() {
@@ -104,6 +105,7 @@ async function joinRoom() {
     return;
   }
 
+  console.log('[voice] joining room as', myUsername);
   try {
     const res  = await fetch(`${API_BASE}/voice/join`, {
       method:  'POST',
@@ -116,8 +118,10 @@ async function joinRoom() {
 
     const data = await res.json();
     myClientId = data.clientId;
+    console.log('[voice] joined, clientId=%s, existing peers=%d', myClientId, data.participants.length - 1);
 
     myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log('[voice] mic acquired, tracks:', myStream.getTracks().map(t => t.label));
     applyMuteState();
     startSpeakingDetector();
 
@@ -133,7 +137,7 @@ async function joinRoom() {
     heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_MS);
     setStatus('Connected.');
   } catch (err) {
-    console.error('joinRoom:', err);
+    console.error('[voice] joinRoom error:', err);
     setStatus('Could not access microphone or join room.');
   }
 }
@@ -262,24 +266,38 @@ function syncParticipants(list) {
 // ── WebRTC ────────────────────────────────────────────────────────────────────
 function makePc(remoteId) {
   const pc = new RTCPeerConnection(STUN);
+  console.log('[voice] created PeerConnection for', remoteId);
 
   pc.ontrack = ({ streams }) => {
+    console.log('[voice] ontrack from', remoteId, '— streams:', streams.length);
     const audio = document.createElement('audio');
     audio.srcObject = streams[0];
     document.body.appendChild(audio);
     if (peers[remoteId]) peers[remoteId].audio = audio;
-    audio.play().catch(() => showAudioUnblockButton());
+    audio.play().catch(err => {
+      console.warn('[voice] autoplay blocked for', remoteId, err.name);
+      showAudioUnblockButton();
+    });
   };
 
   pc.oniceconnectionstatechange = () => {
+    console.log('[voice] ICE', remoteId, '→', pc.iceConnectionState);
     if (pc.iceConnectionState === 'failed') {
+      console.warn('[voice] ICE failed for', remoteId, '— closing');
       pc.close();
       delete peers[remoteId];
     }
   };
 
+  pc.onsignalingstatechange = () => {
+    console.log('[voice] signaling', remoteId, '→', pc.signalingState);
+  };
+
   if (myStream) {
     myStream.getTracks().forEach(t => pc.addTrack(t, myStream));
+    console.log('[voice] added local tracks for', remoteId);
+  } else {
+    console.warn('[voice] no local stream when creating PC for', remoteId);
   }
 
   return pc;
@@ -288,11 +306,15 @@ function makePc(remoteId) {
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise(resolve => {
-    const timeout = setTimeout(resolve, ICE_TIMEOUT);
+    const timeout = setTimeout(() => {
+      console.warn('[voice] ICE gathering timed out after %dms — sending SDP anyway', ICE_TIMEOUT);
+      resolve();
+    }, ICE_TIMEOUT);
     pc.addEventListener('icegatheringstatechange', function handler() {
       if (pc.iceGatheringState === 'complete') {
         clearTimeout(timeout);
         pc.removeEventListener('icegatheringstatechange', handler);
+        console.log('[voice] ICE gathering complete');
         resolve();
       }
     });
@@ -301,6 +323,7 @@ function waitForIceGathering(pc) {
 
 async function createOffer(remoteId) {
   if (peers[remoteId]) return;
+  console.log('[voice] createOffer →', remoteId);
   const audio = document.createElement('audio'); // placeholder until ontrack fires
   const pc    = makePc(remoteId);
   peers[remoteId] = { pc, audio };
@@ -309,6 +332,7 @@ async function createOffer(remoteId) {
   await pc.setLocalDescription(offer);
   await waitForIceGathering(pc);
 
+  console.log('[voice] sending offer →', remoteId);
   await fetch(`${API_BASE}/voice/signal`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -324,6 +348,7 @@ async function createOffer(remoteId) {
 
 async function handleOffer(signal) {
   if (peers[signal.from]) return;
+  console.log('[voice] received offer from', signal.from);
   const audio = document.createElement('audio');
   const pc    = makePc(signal.from);
   peers[signal.from] = { pc, audio };
@@ -333,6 +358,7 @@ async function handleOffer(signal) {
   await pc.setLocalDescription(answer);
   await waitForIceGathering(pc);
 
+  console.log('[voice] sending answer →', signal.from);
   await fetch(`${API_BASE}/voice/signal`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -349,6 +375,7 @@ async function handleOffer(signal) {
 async function handleAnswer(signal) {
   const peer = peers[signal.from];
   if (!peer) return;
+  console.log('[voice] received answer from', signal.from);
   await peer.pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
 }
 
@@ -359,6 +386,7 @@ async function pollSignals() {
     const res = await fetch(`${API_BASE}/voice/signals?clientId=${myClientId}`);
     if (!res.ok) return;
     const signals = await res.json();
+    if (signals.length) console.log('[voice] poll received %d signal(s)', signals.length);
     for (const signal of signals) {
       if (signal.type === 'offer')  await handleOffer(signal);
       if (signal.type === 'answer') await handleAnswer(signal);
@@ -379,6 +407,7 @@ async function sendHeartbeat() {
     const newComers = data.participants.filter(
       p => p.clientId !== myClientId && !participants.has(p.clientId)
     );
+    if (newComers.length) console.log('[voice] heartbeat found new peer(s):', newComers.map(p => p.username));
     syncParticipants(data.participants);
     for (const p of newComers) {
       await createOffer(p.clientId);
