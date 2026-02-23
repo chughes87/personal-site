@@ -4,6 +4,17 @@ jest.mock('@aws-sdk/client-dynamodb', () => ({
   DynamoDBClient: jest.fn(() => ({})),
 }));
 
+jest.mock('@aws-sdk/client-ec2', () => {
+  const ec2Send = jest.fn();
+  return {
+    EC2Client: jest.fn(() => ({ send: ec2Send })),
+    StartInstancesCommand:    jest.fn(p => ({ ...p, _cmd: 'StartInstances' })),
+    StopInstancesCommand:     jest.fn(p => ({ ...p, _cmd: 'StopInstances' })),
+    DescribeInstancesCommand: jest.fn(p => ({ ...p, _cmd: 'DescribeInstances' })),
+    _ec2Send: ec2Send,
+  };
+});
+
 jest.mock('@aws-sdk/lib-dynamodb', () => {
   const send = jest.fn();
   return {
@@ -21,7 +32,8 @@ process.env.RATE_TABLE     = 'test-rates';
 process.env.RATE_LIMIT     = '15';
 process.env.VOICE_TABLE    = 'test-voice';
 
-const { _send: send } = jest.requireMock('@aws-sdk/lib-dynamodb');
+const { _send: send }     = jest.requireMock('@aws-sdk/lib-dynamodb');
+const { _ec2Send: ec2Send } = jest.requireMock('@aws-sdk/client-ec2');
 const { handler } = require('../../api/handler');
 
 function makeEvent(method, { qs = null, body = null } = {}) {
@@ -43,6 +55,7 @@ function makeVoiceEvent(method, route, { qs = null, body = null } = {}) {
 
 beforeEach(() => {
   send.mockReset();
+  ec2Send.mockReset();
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -345,5 +358,150 @@ describe('GET /voice/signals', () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual([]);
+  });
+});
+
+// ── TURN server ───────────────────────────────────────────────────────────────
+
+describe('TURN server', () => {
+  const INSTANCE_ID = 'i-0testinstance';
+  const SECRET      = 'testsecret12345';
+
+  beforeEach(() => {
+    process.env.TURN_EC2_INSTANCE_ID = INSTANCE_ID;
+    process.env.TURN_SECRET          = SECRET;
+  });
+
+  afterEach(() => {
+    delete process.env.TURN_EC2_INSTANCE_ID;
+    delete process.env.TURN_SECRET;
+  });
+
+  // helper: DescribeInstances response for a stopped instance
+  function stoppedInstance() {
+    return { Reservations: [{ Instances: [{ State: { Name: 'stopped' }, PublicIpAddress: null }] }] };
+  }
+
+  // helper: DescribeInstances response for a running instance
+  function runningInstance(ip = '1.2.3.4') {
+    return { Reservations: [{ Instances: [{ State: { Name: 'running' }, PublicIpAddress: ip }] }] };
+  }
+
+  test('turnCredentials: username is {expiry}:{clientId} and credential is correct HMAC', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(1_000_000_000);  // 1,000,000 seconds since epoch
+
+    send
+      .mockResolvedValueOnce({ Items: [] })   // capacity check
+      .mockResolvedValueOnce({})              // PutCommand
+      .mockResolvedValueOnce({ Items: [{ clientId: 'abc', username: 'alice' }] });  // return list
+    ec2Send.mockResolvedValueOnce(stoppedInstance());  // DescribeInstances
+    ec2Send.mockResolvedValueOnce({});                 // StartInstances
+
+    const res  = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.turn).toBeDefined();
+
+    const expectedExpiry    = 1_000_000_000 / 1000 + 3600;
+    const expectedUsername  = `${expectedExpiry}:${body.clientId}`;
+    const expectedCredential = require('crypto')
+      .createHmac('sha1', SECRET)
+      .update(expectedUsername)
+      .digest('base64');
+
+    expect(body.turn.username).toBe(expectedUsername);
+    expect(body.turn.credential).toBe(expectedCredential);
+  });
+
+  test('voiceJoin when room is empty: calls StartInstances and returns turn object', async () => {
+    send
+      .mockResolvedValueOnce({ Items: [] })  // capacity check (empty room)
+      .mockResolvedValueOnce({})             // PutCommand
+      .mockResolvedValueOnce({ Items: [{ clientId: 'abc', username: 'alice' }] });
+    ec2Send.mockResolvedValueOnce(stoppedInstance());  // DescribeInstances
+    ec2Send.mockResolvedValueOnce({});                 // StartInstances
+
+    const res  = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.turn).toBeDefined();
+    expect(body.turnReady).toBe(false);
+    expect(ec2Send.mock.calls.some(([cmd]) => cmd._cmd === 'StartInstances')).toBe(true);
+  });
+
+  test('voiceJoin when room is non-empty: does NOT call StartInstances', async () => {
+    send
+      .mockResolvedValueOnce({ Items: [{ clientId: 'x1', username: 'bob' }] })  // existing participant
+      .mockResolvedValueOnce({})   // PutCommand
+      .mockResolvedValueOnce({ Items: [{ clientId: 'x1', username: 'bob' }, { clientId: 'abc', username: 'alice' }] });
+    ec2Send.mockResolvedValueOnce(runningInstance());  // DescribeInstances (already running)
+
+    const res  = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.turn).toBeDefined();
+    expect(ec2Send.mock.calls.some(([cmd]) => cmd._cmd === 'StartInstances')).toBe(false);
+  });
+
+  test('voiceJoin when instance is running: returns turnReady: true with turnHost', async () => {
+    send
+      .mockResolvedValueOnce({ Items: [] })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Items: [{ clientId: 'abc', username: 'alice' }] });
+    ec2Send.mockResolvedValueOnce(runningInstance('5.6.7.8'));
+
+    const res  = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    const body = JSON.parse(res.body);
+
+    expect(body.turnReady).toBe(true);
+    expect(body.turnHost).toBe('5.6.7.8');
+  });
+
+  test('voiceLeave last participant: calls StopInstances', async () => {
+    send
+      .mockResolvedValueOnce({})               // DeleteCommand
+      .mockResolvedValueOnce({ Items: [] });   // getParticipants → empty
+    ec2Send.mockResolvedValueOnce({});         // StopInstances
+
+    const res = await handler(makeVoiceEvent('POST', 'leave', { body: { clientId: 'abc' } }));
+
+    expect(res.statusCode).toBe(200);
+    expect(ec2Send.mock.calls.some(([cmd]) => cmd._cmd === 'StopInstances')).toBe(true);
+  });
+
+  test('voiceLeave not last participant: does NOT call StopInstances', async () => {
+    send
+      .mockResolvedValueOnce({})  // DeleteCommand
+      .mockResolvedValueOnce({ Items: [{ clientId: 'x1', username: 'bob' }] });  // still someone
+
+    const res = await handler(makeVoiceEvent('POST', 'leave', { body: { clientId: 'abc' } }));
+
+    expect(res.statusCode).toBe(200);
+    expect(ec2Send).not.toHaveBeenCalled();
+  });
+
+  test('GET /voice/turn/status when running: returns { ready: true, host }', async () => {
+    ec2Send.mockResolvedValueOnce(runningInstance('1.2.3.4'));
+
+    const res  = await handler(makeVoiceEvent('GET', 'turn/status'));
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.ready).toBe(true);
+    expect(body.host).toBe('1.2.3.4');
+  });
+
+  test('GET /voice/turn/status when pending: returns { ready: false, host: null }', async () => {
+    ec2Send.mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: 'pending' }, PublicIpAddress: null }] }] });
+
+    const res  = await handler(makeVoiceEvent('GET', 'turn/status'));
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.ready).toBe(false);
+    expect(body.host).toBeNull();
   });
 });

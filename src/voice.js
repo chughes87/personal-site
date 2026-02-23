@@ -8,7 +8,20 @@ const SPEAK_MS      = 100;   // speaking detector interval
 const SPEAK_THRESH  = 10;    // RMS threshold (0–255)
 const ICE_TIMEOUT   = 8000;  // ms to wait for ICE gathering before giving up
 
-const STUN = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+let turnConfig = null;
+
+function buildIceConfig(host, username, credential) {
+  return {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: `turn:${host}:3478`, username, credential },
+    ],
+  };
+}
+
+function stunOnlyConfig() {
+  return { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+}
 
 // ── DOM ─────────────────────────────────────────────────────────────────────
 const voiceGate        = document.getElementById('voiceGate');
@@ -159,6 +172,17 @@ async function joinRoom(previousClientId = null) {
     saveSession({ clientId: myClientId, username: myUsername });
     console.log('[voice] joined, clientId=%s, existing peers=%d', myClientId, data.participants.length - 1);
 
+    const { turn, turnReady, turnHost } = data;
+    if (turn) {
+      if (turnReady && turnHost) {
+        turnConfig = buildIceConfig(turnHost, turn.username, turn.credential);
+      } else {
+        setStatus('Starting TURN server… (~30s on first join)');
+        const host = await waitForTurn();
+        turnConfig = buildIceConfig(host, turn.username, turn.credential);
+      }
+    }
+
     myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     console.log('[voice] mic acquired, tracks:', myStream.getTracks().map(t => t.label));
     applyMuteState();
@@ -180,6 +204,16 @@ async function joinRoom(previousClientId = null) {
     console.error('[voice] joinRoom error:', err);
     setStatus('Could not access microphone or join room.');
   }
+}
+
+async function waitForTurn() {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const res  = await fetch(`${API_BASE}/voice/turn/status`);
+    const data = await res.json();
+    if (data.ready && data.host) return data.host;
+  }
+  throw new Error('TURN server did not start in time');
 }
 
 function leaveRoom() {
@@ -309,7 +343,7 @@ function syncParticipants(list) {
 
 // ── WebRTC ────────────────────────────────────────────────────────────────────
 function makePc(remoteId) {
-  const pc = new RTCPeerConnection(STUN);
+  const pc = new RTCPeerConnection(turnConfig ?? stunOnlyConfig());
   console.log('[voice] created PeerConnection for', remoteId);
 
   pc.ontrack = ({ streams }) => {

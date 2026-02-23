@@ -11,7 +11,7 @@ Parameters:
 Globals:
   Function:
     Runtime: nodejs20.x
-    Timeout: 10
+    Timeout: 15
     MemorySize: 128
 
 Resources:
@@ -38,11 +38,13 @@ Resources:
       CodeUri: .
       Environment:
         Variables:
-          MESSAGES_TABLE: !Ref MessagesTable
-          RATE_TABLE:     !Ref RateLimitsTable
-          RATE_LIMIT:     '15'
-          ALLOWED_ORIGIN: !Ref AllowedOrigin
-          VOICE_TABLE:    !Ref VoiceRoomTable
+          MESSAGES_TABLE:       !Ref MessagesTable
+          RATE_TABLE:           !Ref RateLimitsTable
+          RATE_LIMIT:           '15'
+          ALLOWED_ORIGIN:       !Ref AllowedOrigin
+          VOICE_TABLE:          !Ref VoiceRoomTable
+          TURN_EC2_INSTANCE_ID: 'i-0REPLACE'   # set to '' to disable
+          TURN_SECRET:          ''              # set manually after deploy (or use SSM)
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
@@ -50,6 +52,13 @@ Resources:
             TableName: !Ref RateLimitsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref VoiceRoomTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ec2:StartInstances
+                - ec2:StopInstances
+                - ec2:DescribeInstances
+              Resource: '*'
       Events:
         Api:
           Type: HttpApi
@@ -116,6 +125,31 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  TurnIdleStopFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.turnIdleStopHandler
+      CodeUri: .
+      Environment:
+        Variables:
+          VOICE_TABLE:          !Ref VoiceRoomTable
+          TURN_EC2_INSTANCE_ID: 'i-0REPLACE'   # set to '' to disable
+          TURN_SECRET:          ''
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VoiceRoomTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ec2:StopInstances
+                - ec2:DescribeInstances
+              Resource: '*'
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
 
 Outputs:
   ApiUrl:

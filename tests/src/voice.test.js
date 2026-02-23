@@ -31,6 +31,9 @@ beforeEach(() => {
   document.body.innerHTML = HTML;
   localStorage.clear();
 
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+
   // RTCPeerConnection — iceGatheringState='complete' so waitForIceGathering resolves immediately
   global.RTCPeerConnection = jest.fn().mockImplementation(() => ({
     iceGatheringState: 'complete',
@@ -97,6 +100,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 function loadVoice(apiBase = '') {
@@ -477,6 +481,110 @@ describe('session persistence', () => {
 
     document.getElementById('leaveBtn').click();
     expect(localStorage.getItem('voice_session')).toBeNull();
+  });
+});
+
+// ── TURN config ──────────────────────────────────────────────────────────────
+
+describe('TURN config', () => {
+  const turnCreds = { username: '1003600:c1', credential: 'hmacvalue' };
+
+  test('makePc uses TURN config when turnReady: true and turnHost is provided', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c2', username: 'bob' }],
+        turn: turnCreds,
+        turnReady: true,
+        turnHost: '1.2.3.4',
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    expect(global.RTCPeerConnection).toHaveBeenCalledWith({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:1.2.3.4:3478', username: turnCreds.username, credential: turnCreds.credential },
+      ],
+    });
+  });
+
+  test('waitForTurn polls turn/status until ready, then uses returned host', async () => {
+    global.fetch = jest.fn().mockImplementation((url) => {
+      if (url.includes('/voice/join')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            clientId: 'c1',
+            participants: [{ clientId: 'c2', username: 'bob' }],
+            turn: turnCreds,
+            turnReady: false,
+          }),
+        });
+      }
+      if (url.includes('/voice/turn/status')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ready: true, host: '9.8.7.6' }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ participants: [] }) });
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+
+    // Let join fetch resolve and enter waitForTurn's first setTimeout
+    await flushPromises(3);
+
+    // Advance the 3000ms timer inside waitForTurn
+    await jest.advanceTimersByTimeAsync(3000);
+    await flushPromises(10);
+
+    // turn/status should have been polled
+    const statusCalls = fetch.mock.calls.filter(([url]) => url.includes('turn/status'));
+    expect(statusCalls.length).toBeGreaterThan(0);
+
+    // RTCPeerConnection should use the TURN host returned by the poll
+    expect(global.RTCPeerConnection).toHaveBeenCalledWith({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:9.8.7.6:3478', username: turnCreds.username, credential: turnCreds.credential },
+      ],
+    });
+  });
+
+  test('makePc falls back to STUN-only when no turn field in join response', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c2', username: 'bob' }],
+        // no turn field
+      }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    // RTCPeerConnection called with STUN-only (no TURN server)
+    const callArg = global.RTCPeerConnection.mock.calls[0]?.[0];
+    expect(callArg.iceServers).toHaveLength(1);
+    expect(callArg.iceServers[0].urls).toBe('stun:stun.l.google.com:19302');
   });
 });
 
