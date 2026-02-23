@@ -151,11 +151,11 @@ personal-site/
 ├── index.html              # portfolio page
 ├── chat.html               # chat page — update window.CHAT_API_BASE after SAM deploy
 ├── voice.html              # voice room page — update window.VOICE_API_BASE after SAM deploy
-├── style.css               # all styles (design tokens, dark mode, chat UI, voice UI)
 ├── src/
 │   ├── main.js             # theme toggle, dynamic year (used on all pages)
 │   ├── chat.js             # chat polling, send, username management
-│   └── voice.js            # WebRTC voice — join/leave/signal/heartbeat/mute
+│   ├── voice.js            # WebRTC voice — join/leave/signal/heartbeat/mute
+│   └── style.css           # all styles (design tokens, dark mode, chat UI, voice UI)
 ├── api/
 │   ├── handler.js          # Lambda — chat + voice endpoints, rate limiting
 │   └── template.yaml       # SAM — Lambda + HTTP API + DynamoDB tables

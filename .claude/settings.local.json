@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(npx --version:*)"
+      "Bash(npx --version:*)",
+      "Bash(git -C \"C:/Users/Charles Hughes/Documents/GitHub/personal-site\" add src/voice.js VOICE_PLAN.md)",
+      "Bash(git -C:*)",
+      "Bash(git -C \"C:/Users/Charles Hughes/Documents/GitHub/personal-site\" push -u origin claude/voice-js)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(where node)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)",
+      "Bash(cd:*)",
+      "Bash(one\"\\) from room full \\(\"max 10\"\\) rather than showing the same message for both:*)"
     ]
   }
 }
