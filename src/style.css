@@ -438,9 +438,9 @@ a:hover { opacity: 0.8; }
 .footer-links a:hover { color: var(--color-text); opacity: 1; }
 
 /* ============================================================
-   Mobile nav — collapse links below 480px
+   Mobile nav — collapse links below 768px
    ============================================================ */
-@media (max-width: 479px) {
+@media (max-width: 767px) {
   .nav-links { display: none; }
 }
 
@@ -464,13 +464,13 @@ a:hover { opacity: 0.8; }
 .chat-gate {
   flex: 1;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
 }
 
 .chat-gate[hidden] {
   display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1.25rem;
 }
 
 .chat-gate-form {
@@ -504,7 +504,7 @@ a:hover { opacity: 0.8; }
   border-radius: var(--radius);
   background: var(--color-bg);
   color: var(--color-text);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   transition: border-color var(--transition);
 }
 
@@ -643,7 +643,7 @@ a:hover { opacity: 0.8; }
   border-radius: var(--radius);
   background: var(--color-bg);
   color: var(--color-text);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   transition: border-color var(--transition);
 }
 
@@ -720,7 +720,7 @@ a:hover { opacity: 0.8; }
   border-radius: var(--radius);
   background: var(--color-bg);
   color: var(--color-text);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   transition: border-color var(--transition);
 }
 
@@ -896,4 +896,47 @@ a:hover { opacity: 0.8; }
   flex-shrink: 0;
   font-style: italic;
   min-height: 1.5rem;
+}
+
+/* ============================================================
+   Mobile UX improvements
+   ============================================================ */
+@media (max-width: 767px) {
+  /* 44 × 44 px minimum touch targets */
+  .btn {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* Voice controls: expand buttons to fill the bar */
+  .voice-controls {
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .voice-controls .btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Gate forms: stack input + submit on narrow screens */
+  .voice-gate-row,
+  .chat-gate-row {
+    flex-direction: column;
+  }
+
+  .voice-gate-row input,
+  .chat-gate-row input {
+    width: 100%;
+  }
+
+  .voice-gate-row .btn,
+  .chat-gate-row .btn {
+    width: 100%;
+  }
+
+  /* Chat input bar: taller send button */
+  .chat-form {
+    padding: 0.875rem 1rem;
+  }
 }
