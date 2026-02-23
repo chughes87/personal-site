@@ -31,6 +31,9 @@ beforeEach(() => {
   document.body.innerHTML = HTML;
   localStorage.clear();
 
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+
   // RTCPeerConnection — iceGatheringState='complete' so waitForIceGathering resolves immediately
   global.RTCPeerConnection = jest.fn().mockImplementation(() => ({
     iceGatheringState: 'complete',
@@ -84,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 function loadVoice(apiBase = '') {
@@ -506,7 +510,7 @@ describe('TURN config', () => {
           ok: true,
           json: () => Promise.resolve({
             clientId: 'c1',
-            participants: [],
+            participants: [{ clientId: 'c2', username: 'bob' }],
             turn: turnCreds,
             turnReady: false,
           }),
