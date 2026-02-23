@@ -62,6 +62,19 @@ beforeEach(() => {
   global.AudioContext = jest.fn().mockReturnValue({
     createMediaStreamSource: jest.fn().mockReturnValue(mockSrc),
     createAnalyser: jest.fn().mockReturnValue(mockAnalyser),
+    createOscillator: jest.fn().mockImplementation(() => ({
+      type: 'sine',
+      frequency: { setValueAtTime: jest.fn(), linearRampToValueAtTime: jest.fn() },
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+    createGain: jest.fn().mockImplementation(() => ({
+      gain: { setValueAtTime: jest.fn(), linearRampToValueAtTime: jest.fn() },
+      connect: jest.fn(),
+    })),
+    destination: {},
+    currentTime: 0,
     close: jest.fn(),
   });
 
@@ -499,5 +512,118 @@ describe('createOffer', () => {
       type: 'offer',
       roomId: 'main',
     });
+  });
+});
+
+// ── Notification sounds ───────────────────────────────────────────────────────
+
+describe('notification sounds', () => {
+  // Helper: fetch mock that routes by URL
+  function makeFetch({ joinParticipants, heartbeatParticipants }) {
+    return jest.fn().mockImplementation((url) => {
+      if (url.includes('/voice/join')) {
+        return Promise.resolve({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ clientId: 'c1', participants: joinParticipants }),
+        });
+      }
+      if (url.includes('/voice/heartbeat')) {
+        return Promise.resolve({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ participants: heartbeatParticipants }),
+        });
+      }
+      // /voice/signals (poll) and /voice/signal (offer/answer)
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue([]) });
+    });
+  }
+
+  test('no chime on initial sync when joining alone', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [{ clientId: 'c1', username: 'alice' }],
+      heartbeatParticipants: [{ clientId: 'c1', username: 'alice' }],
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    const mockCtx = global.AudioContext.mock.results[0].value;
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
+  });
+
+  test('ascending chime plays when a new participant joins via heartbeat', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [{ clientId: 'c1', username: 'alice' }],
+      heartbeatParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    const mockCtx = global.AudioContext.mock.results[0].value;
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    // playChime(true) creates one oscillator per tone (2 tones)
+    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(2);
+  });
+
+  test('descending chime plays when a participant leaves via heartbeat', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+      heartbeatParticipants: [{ clientId: 'c1', username: 'alice' }],
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    const mockCtx = global.AudioContext.mock.results[0].value;
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    // playChime(false) creates one oscillator per tone (2 tones)
+    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(2);
+  });
+
+  test('no chime when heartbeat returns only self (myClientId)', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [{ clientId: 'c1', username: 'alice' }],
+      heartbeatParticipants: [{ clientId: 'c1', username: 'alice' }],
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    const mockCtx = global.AudioContext.mock.results[0].value;
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
   });
 });

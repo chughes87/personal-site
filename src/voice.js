@@ -39,6 +39,7 @@ let heartbeatTimer = null;
 let speakTimer     = null;
 let audioCtx       = null;
 let analyser       = null;
+let initialSyncDone = false;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getUsername()     { return localStorage.getItem(USERNAME_KEY); }
@@ -58,6 +59,25 @@ function esc(str) {
 
 function setStatus(msg) {
   voiceStatus.textContent = msg;
+}
+
+function playChime(ascending) {
+  if (!audioCtx) return;
+  const now   = audioCtx.currentTime;
+  const notes = ascending ? [880, 1320] : [1320, 880];
+  const dur   = 0.12;  // seconds per tone
+  notes.forEach((freq, i) => {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now + i * dur);
+    gain.gain.setValueAtTime(0.25, now + i * dur);
+    gain.gain.linearRampToValueAtTime(0, now + i * dur + dur);
+    osc.start(now + i * dur);
+    osc.stop(now + i * dur + dur + 0.01);
+  });
 }
 
 function showAudioUnblockButton() {
@@ -146,6 +166,7 @@ async function joinRoom(previousClientId = null) {
 
     // Update participant list and connect to anyone already in the room
     syncParticipants(data.participants);
+    initialSyncDone = true;
     for (const p of data.participants) {
       if (p.clientId !== myClientId) {
         await createOffer(p.clientId);
@@ -166,6 +187,7 @@ function leaveRoom() {
   clearInterval(heartbeatTimer);
   clearInterval(speakTimer);
   pollTimer = heartbeatTimer = speakTimer = null;
+  initialSyncDone = false;
 
   // Close all peer connections
   for (const [id, peer] of Object.entries(peers)) {
@@ -266,6 +288,7 @@ function syncParticipants(list) {
     if (!participants.has(id)) {
       participants.set(id, p);
       upsertCard(id, p.username);
+      if (initialSyncDone && id !== myClientId) playChime(true);
     }
   }
 
@@ -279,6 +302,7 @@ function syncParticipants(list) {
         peers[id].audio.remove();
         delete peers[id];
       }
+      if (initialSyncDone) playChime(false);
     }
   }
 }
