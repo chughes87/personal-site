@@ -457,6 +457,7 @@ a:hover { opacity: 0.8; }
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - var(--nav-h));
   height: calc(100svh - var(--nav-h));
 }
 
@@ -673,6 +674,7 @@ a:hover { opacity: 0.8; }
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - var(--nav-h));
   height: calc(100svh - var(--nav-h));
 }
 
