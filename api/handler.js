@@ -109,15 +109,24 @@ async function getParticipants(roomId) {
 // ── POST /voice/join ───────────────────────────────────────────────────────
 
 async function voiceJoin(body) {
-  const { username, roomId = 'main' } = body;
+  const { username, roomId = 'main', previousClientId } = body;
   if (!username?.trim()) return resp(400, { error: 'username is required' });
 
   const existing = await getParticipants(roomId);
   if (existing.length >= MAX_PARTICIPANTS) return resp(409, { error: 'Room is full' });
 
   const nameLower = username.trim().toLowerCase();
-  if (existing.some(p => p.username.toLowerCase() === nameLower)) {
-    return resp(409, { error: 'Name already taken' });
+  const conflicting = existing.find(p => p.username.toLowerCase() === nameLower);
+  if (conflicting) {
+    if (previousClientId && conflicting.clientId === previousClientId) {
+      // Reclaim: evict the stale session and allow the same client to rejoin
+      await ddb.send(new DeleteCommand({
+        TableName: VOICE_TABLE,
+        Key: { pk: `room#${roomId}`, sk: `participant#${previousClientId}` },
+      }));
+    } else {
+      return resp(409, { error: 'Name already taken' });
+    }
   }
 
   const clientId = randomId();

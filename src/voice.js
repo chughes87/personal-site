@@ -1,6 +1,7 @@
 // ── Config ──────────────────────────────────────────────────────────────────
 const API_BASE      = (window.VOICE_API_BASE || '').replace(/\/$/, '');
 const USERNAME_KEY  = 'voice_username';
+const SESSION_KEY   = 'voice_session';
 const POLL_MS       = 1500;
 const HEARTBEAT_MS  = 15000;
 const SPEAK_MS      = 100;   // speaking detector interval
@@ -22,6 +23,7 @@ const muteBtn          = document.getElementById('muteBtn');
 const leaveBtn         = document.getElementById('leaveBtn');
 const voiceStatus      = document.getElementById('voiceStatus');
 const audioUnblockBtn  = document.getElementById('audioUnblockBtn');
+const voiceGateError   = document.getElementById('voiceGateError');
 
 // ── State ────────────────────────────────────────────────────────────────────
 let myClientId  = null;
@@ -41,6 +43,10 @@ let analyser       = null;
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getUsername()     { return localStorage.getItem(USERNAME_KEY); }
 function saveUsername(name) { localStorage.setItem(USERNAME_KEY, name); }
+
+function loadSession()      { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; } }
+function saveSession(s)     { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+function clearSession()     { localStorage.removeItem(SESSION_KEY); }
 
 function esc(str) {
   return String(str)
@@ -64,20 +70,21 @@ function apiConfigured() {
 }
 
 // ── Gate ─────────────────────────────────────────────────────────────────────
-function showGate() {
+function showGate(err = '') {
   voiceUI.hidden  = true;
   voiceGate.hidden = false;
   voiceUsernameInput.value = getUsername() || '';
+  if (voiceGateError) voiceGateError.textContent = err;
   voiceUsernameInput.focus();
 }
 
-async function showVoiceUI(name) {
+async function showVoiceUI(name, previousClientId = null) {
   myUsername = name;
   voiceDisplayName.textContent = name;
   voiceGate.hidden = true;
   voiceUI.hidden   = false;
   setStatus('Joining room…');
-  await joinRoom();
+  await joinRoom(previousClientId);
 }
 
 voiceGateForm.addEventListener('submit', async e => {
@@ -85,7 +92,10 @@ voiceGateForm.addEventListener('submit', async e => {
   const name = voiceUsernameInput.value.trim();
   if (!name) return;
   saveUsername(name);
-  await showVoiceUI(name);
+  const session = loadSession();
+  const previousClientId = (session && session.username.toLowerCase() === name.toLowerCase())
+    ? session.clientId : null;
+  await showVoiceUI(name, previousClientId);
 });
 
 voiceRenameBtn.addEventListener('click', () => {
@@ -94,7 +104,7 @@ voiceRenameBtn.addEventListener('click', () => {
 });
 
 // ── Join / Leave ──────────────────────────────────────────────────────────────
-async function joinRoom() {
+async function joinRoom(previousClientId = null) {
   if (!window.isSecureContext) {
     setStatus('Voice chat requires HTTPS. Please visit https://pointfree.space/voice.html');
     return;
@@ -107,16 +117,18 @@ async function joinRoom() {
 
   console.log('[voice] joining room as', myUsername);
   try {
+    const joinBody = { username: myUsername, roomId: 'main' };
+    if (previousClientId) joinBody.previousClientId = previousClientId;
     const res  = await fetch(`${API_BASE}/voice/join`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ username: myUsername, roomId: 'main' }),
+      body:    JSON.stringify(joinBody),
     });
 
     if (res.status === 409) {
       const { error } = await res.json();
-      setStatus(error === 'Name already taken'
-        ? 'That name is already in the room — pick a different one.'
+      showGate(error === 'Name already taken'
+        ? 'That name is already taken — pick a different one.'
         : 'Room is full (max 10).');
       return;
     }
@@ -124,6 +136,7 @@ async function joinRoom() {
 
     const data = await res.json();
     myClientId = data.clientId;
+    saveSession({ clientId: myClientId, username: myUsername });
     console.log('[voice] joined, clientId=%s, existing peers=%d', myClientId, data.participants.length - 1);
 
     myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -180,6 +193,7 @@ function leaveRoom() {
     }).catch(() => {});
   }
 
+  clearSession();
   myClientId = null;
 }
 
