@@ -1,8 +1,10 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
-const { randomBytes } = require('crypto');
+const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand } = require('@aws-sdk/client-ec2');
+const { randomBytes, createHmac } = require('crypto');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const ec2 = new EC2Client({ region: 'us-west-1' });
 
 const MESSAGES_TABLE  = process.env.MESSAGES_TABLE;
 const RATE_TABLE      = process.env.RATE_TABLE;
@@ -29,6 +31,36 @@ function randomId()   { return randomBytes(4).toString('hex'); }
 
 function resp(statusCode, body, extra = {}) {
   return { statusCode, headers: { ...CORS, ...extra }, body: JSON.stringify(body) };
+}
+
+// ── TURN helpers ───────────────────────────────────────────────────────────
+
+function turnCredentials(clientId) {
+  const secret   = process.env.TURN_SECRET;
+  const expiry   = Math.floor(Date.now() / 1000) + 3600;  // 1-hour TTL
+  const username = `${expiry}:${clientId}`;
+  const credential = createHmac('sha1', secret).update(username).digest('base64');
+  return { username, credential };
+}
+
+async function getEc2State() {
+  const instanceId = process.env.TURN_EC2_INSTANCE_ID;
+  if (!instanceId) return { state: 'unavailable', publicIp: null };
+  const res  = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [instanceId] }));
+  const inst = res.Reservations?.[0]?.Instances?.[0];
+  return { state: inst?.State?.Name ?? 'unknown', publicIp: inst?.PublicIpAddress ?? null };
+}
+
+async function startTurnServer() {
+  const instanceId = process.env.TURN_EC2_INSTANCE_ID;
+  if (!instanceId) return;
+  await ec2.send(new StartInstancesCommand({ InstanceIds: [instanceId] }));
+}
+
+async function stopTurnServer() {
+  const instanceId = process.env.TURN_EC2_INSTANCE_ID;
+  if (!instanceId) return;
+  await ec2.send(new StopInstancesCommand({ InstanceIds: [instanceId] }));
 }
 
 // ── rate limiting ──────────────────────────────────────────────────────────
@@ -142,6 +174,25 @@ async function voiceJoin(body) {
   }));
 
   const participants = await getParticipants(roomId);
+  const credentials = process.env.TURN_SECRET ? turnCredentials(clientId) : null;
+
+  if (credentials) {
+    const wasEmpty = existing.filter(p => p.clientId !== previousClientId).length === 0;
+    const { state, publicIp } = await getEc2State();
+    const isRunning = state === 'running';
+
+    if (!isRunning && wasEmpty) await startTurnServer();  // fire-and-forget
+
+    const turnReady = isRunning && !!publicIp;
+    return resp(200, {
+      clientId,
+      participants,
+      turn: credentials,
+      turnReady,
+      ...(turnReady ? { turnHost: publicIp } : {}),
+    });
+  }
+
   return resp(200, { clientId, participants });
 }
 
@@ -173,6 +224,11 @@ async function voiceLeave(body) {
     TableName: VOICE_TABLE,
     Key: { pk: `room#${roomId}`, sk: `participant#${clientId}` },
   }));
+
+  if (process.env.TURN_EC2_INSTANCE_ID) {
+    const remaining = await getParticipants(roomId);
+    if (remaining.length === 0) await stopTurnServer().catch(() => {});
+  }
 
   return resp(200, {});
 }
@@ -221,6 +277,27 @@ async function voiceSignals(clientId) {
   return resp(200, items.map(({ from, type, sdp }) => ({ from, type, sdp })));
 }
 
+// ── GET /voice/turn/status ─────────────────────────────────────────────────
+
+async function turnStatus() {
+  const { state, publicIp } = await getEc2State();
+  const ready = state === 'running' && !!publicIp;
+  return resp(200, { ready, host: ready ? publicIp : null });
+}
+
+// ── Scheduled idle-stop ────────────────────────────────────────────────────
+
+async function turnIdleStop() {
+  const participants = await getParticipants('main');
+  if (participants.length > 0) return { stopped: false };
+  const { state } = await getEc2State();
+  if (state === 'running' || state === 'pending') {
+    await stopTurnServer();
+    return { stopped: true };
+  }
+  return { stopped: false };
+}
+
 // ── voice router ───────────────────────────────────────────────────────────
 
 async function handleVoice(method, path, event) {
@@ -232,11 +309,16 @@ async function handleVoice(method, path, event) {
   if (method === 'POST' && route === 'leave')     return voiceLeave(body);
   if (method === 'POST' && route === 'signal')    return voiceSignal(body);
   if (method === 'GET'  && route === 'signals')   return voiceSignals(event.queryStringParameters?.clientId);
+  if (method === 'GET'  && route === 'turn/status') return turnStatus();
 
   return resp(404, { error: 'Not found' });
 }
 
 // ── handler ────────────────────────────────────────────────────────────────
+
+exports.turnIdleStopHandler = async () => {
+  return turnIdleStop();
+};
 
 exports.handler = async (event) => {
   const method = event.requestContext.http.method;
