@@ -17,13 +17,13 @@ Add a `playChime(ascending)` helper that uses the existing `audioCtx` (created i
 
 ## Checklist
 
-- [ ] Add `initialSyncDone` flag to State block in `src/voice.js`
-- [ ] Add `playChime(ascending)` helper in `src/voice.js`
-- [ ] Modify `syncParticipants` to call `playChime` on arrivals/departures
-- [ ] Set `initialSyncDone = true` in `joinRoom` after initial sync
-- [ ] Reset `initialSyncDone = false` in `leaveRoom`
-- [ ] Extend `AudioContext` mock in `tests/src/voice.test.js`
-- [ ] Add `describe('notification sounds', ...)` test block
+- [x] Add `initialSyncDone` flag to State block in `src/voice.js`
+- [x] Add `playChime(ascending)` helper in `src/voice.js`
+- [x] Modify `syncParticipants` to call `playChime` on arrivals/departures
+- [x] Set `initialSyncDone = true` in `joinRoom` after initial sync
+- [x] Reset `initialSyncDone = false` in `leaveRoom`
+- [x] Extend `AudioContext` mock in `tests/src/voice.test.js`
+- [x] Add `describe('notification sounds', ...)` test block
 
 ---
 
