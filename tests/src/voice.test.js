@@ -167,6 +167,45 @@ describe('API not configured', () => {
   });
 });
 
+// ── Name conflict ────────────────────────────────────────────────────────────
+
+describe('name conflict', () => {
+  test('shows name-taken message when join returns 409 with Name already taken', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: jest.fn().mockResolvedValue({ error: 'Name already taken' }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('voiceStatus').textContent).toMatch(/different/i);
+    expect(document.getElementById('voiceUI').hidden).toBe(false); // stayed on voice UI
+  });
+
+  test('shows room-full message when join returns 409 with Room is full', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: jest.fn().mockResolvedValue({ error: 'Room is full' }),
+    });
+
+    loadVoice(API);
+    document.getElementById('voiceUsernameInput').value = 'alice';
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('voiceStatus').textContent).toMatch(/full/i);
+  });
+});
+
 // ── Mute button ──────────────────────────────────────────────────────────────
 
 describe('mute button', () => {

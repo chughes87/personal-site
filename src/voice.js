@@ -113,8 +113,14 @@ async function joinRoom() {
       body:    JSON.stringify({ username: myUsername, roomId: 'main' }),
     });
 
-    if (res.status === 409) { setStatus('Room is full (max 10).'); return; }
-    if (!res.ok)             { setStatus('Failed to join room.'); return; }
+    if (res.status === 409) {
+      const { error } = await res.json();
+      setStatus(error === 'Name already taken'
+        ? 'That name is already in the room — pick a different one.'
+        : 'Room is full (max 10).');
+      return;
+    }
+    if (!res.ok) { setStatus('Failed to join room.'); return; }
 
     const data = await res.json();
     myClientId = data.clientId;

@@ -197,6 +197,14 @@ describe('POST /voice/join', () => {
     send.mockResolvedValueOnce({ Items: fullRoom });
     const res = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
     expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toMatch(/full/i);
+  });
+
+  test('returns 409 with "Name already taken" when username is in use (case-insensitive)', async () => {
+    send.mockResolvedValueOnce({ Items: [{ clientId: 'x1', username: 'Alice' }] });
+    const res = await handler(makeVoiceEvent('POST', 'join', { body: { username: 'alice' } }));
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toMatch(/taken/i);
   });
 
   test('returns 200 with clientId and participants on success', async () => {

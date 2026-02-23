@@ -115,6 +115,11 @@ async function voiceJoin(body) {
   const existing = await getParticipants(roomId);
   if (existing.length >= MAX_PARTICIPANTS) return resp(409, { error: 'Room is full' });
 
+  const nameLower = username.trim().toLowerCase();
+  if (existing.some(p => p.username.toLowerCase() === nameLower)) {
+    return resp(409, { error: 'Name already taken' });
+  }
+
   const clientId = randomId();
   await ddb.send(new PutCommand({
     TableName: VOICE_TABLE,
