@@ -22,10 +22,11 @@ Two GitHub Actions workflows:
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `.github/workflows/ci.yml` | Pull requests to `main` | `validate` (HTML: index + chat), `test` (npm ci + jest) |
+| `.github/workflows/ci.yml` | Pull requests to `main` | `validate` (HTML: index + chat), `test` (npm install + jest) |
 | `.github/workflows/deploy.yml` | Push to `main` | `validate` (all .html), `deploy` (S3 upload + CloudFront invalidation) |
 
 > **Known gap:** `ci.yml` validates only `index.html` and `chat.html` — `voice.html` is not validated until the deploy job runs on merge.
+> **Note:** CI uses `npm install` (not `npm ci`) because Node.js is not installed locally — new packages can't be added to the lock file without a local `npm install`. `npm install` resolves missing packages automatically in the CI runner.
 
 ## Testing
 
@@ -60,6 +61,7 @@ Two GitHub Actions workflows:
 | Portfolio / index page | ✅ Complete | `PLAN.md` |
 | Chat (polling, DynamoDB) | ✅ Complete | `PLAN.md` |
 | Voice room (WebRTC, full mesh) | ✅ Complete | `VOICE_PLAN.md` |
+| TURN server (coturn on EC2) | 🔧 Code done, EC2 setup pending | `TURN_PLAN.md` |
 | Screen sharing (WebRTC video) | ⬜ Not started | `STREAMING_PLAN.md` |
 
-Next up: **Screen sharing** — see `STREAMING_PLAN.md` for the full spec and implementation checklist.
+TURN server: code merged — complete Phase 1 (manual EC2 setup) from `TURN_PLAN.md` before it goes live.
