@@ -863,6 +863,116 @@ a:hover { opacity: 0.8; }
   color: #f85149;
 }
 
+.participant-retry {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  height: auto;
+  min-height: unset;
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.participant-retry:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/* -- Connection logs panel -- */
+.voice-logs {
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.voice-logs-summary {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.voice-logs-summary::-webkit-details-marker { display: none; }
+
+.voice-logs-summary::before {
+  content: '▶';
+  font-size: 0.6rem;
+  transition: transform 0.15s;
+}
+
+.voice-logs[open] .voice-logs-summary::before {
+  transform: rotate(90deg);
+}
+
+.voice-logs-summary:hover {
+  color: var(--color-text);
+}
+
+.voice-logs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.25rem 0.75rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.peer-log {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.peer-log-summary {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.peer-log-summary::-webkit-details-marker { display: none; }
+
+.peer-log-summary::before {
+  content: '▶';
+  font-size: 0.55rem;
+  color: var(--color-muted);
+  transition: transform 0.15s;
+}
+
+.peer-log[open] .peer-log-summary::before {
+  transform: rotate(90deg);
+}
+
+.peer-log-entries {
+  padding: 0.4rem 0.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 140px;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+}
+
+.peer-log-entry {
+  font-size: 0.7rem;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+}
+
 @keyframes voice-pulse {
   0%, 100% { box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 6px color-mix(in srgb, var(--color-accent) 25%, transparent); }
   50%       { box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 10px color-mix(in srgb, var(--color-accent) 10%, transparent); }

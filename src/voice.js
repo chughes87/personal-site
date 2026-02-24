@@ -37,6 +37,7 @@ const leaveBtn         = document.getElementById('leaveBtn');
 const voiceStatus      = document.getElementById('voiceStatus');
 const audioUnblockBtn  = document.getElementById('audioUnblockBtn');
 const voiceGateError   = document.getElementById('voiceGateError');
+const voiceLogsBody    = document.getElementById('voiceLogsBody');
 
 // ── State ────────────────────────────────────────────────────────────────────
 let myClientId  = null;
@@ -72,6 +73,31 @@ function esc(str) {
 
 function setStatus(msg) {
   voiceStatus.textContent = msg;
+}
+
+// ── Per-peer logs ─────────────────────────────────────────────────────────────
+function logPeer(remoteId, msg) {
+  console.log('[voice]', msg);
+  const el = document.getElementById(`peer-log-entries-${remoteId}`);
+  if (!el) return;
+  const div = document.createElement('div');
+  div.className = 'peer-log-entry';
+  const ts = new Date().toLocaleTimeString([], { hour12: false });
+  div.textContent = `${ts}  ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function upsertPeerLog(clientId, username) {
+  if (!voiceLogsBody || document.getElementById(`peer-log-${clientId}`)) return;
+  const details = document.createElement('details');
+  details.id = `peer-log-${clientId}`;
+  details.className = 'peer-log';
+  details.innerHTML = `
+    <summary class="peer-log-summary">${esc(username)}</summary>
+    <div class="peer-log-entries" id="peer-log-entries-${clientId}"></div>
+  `;
+  voiceLogsBody.appendChild(details);
 }
 
 function playChime(ascending) {
@@ -290,14 +316,24 @@ function upsertCard(clientId, username) {
     card = document.createElement('div');
     card.id = cardId(clientId);
     card.className = 'participant-card';
-    const connSpan = clientId !== myClientId
+    const isRemote = clientId !== myClientId;
+    const connSpan = isRemote
       ? `<span class="participant-conn" id="conn-${clientId}">connecting…</span>`
+      : '';
+    const retryBtn = isRemote
+      ? `<button class="participant-retry" id="retry-${clientId}" hidden>Retry</button>`
       : '';
     card.innerHTML = `
       <div class="participant-avatar">${esc(username.charAt(0).toUpperCase())}</div>
       <span class="participant-name">${esc(username)}</span>
       ${connSpan}
+      ${retryBtn}
     `;
+    if (isRemote) {
+      card.querySelector('.participant-retry')
+        .addEventListener('click', () => retryConnection(clientId));
+      upsertPeerLog(clientId, username);
+    }
     participantGrid.appendChild(card);
   }
   return card;
@@ -316,15 +352,30 @@ function setConnStatus(clientId, state) {
     failed:       'failed',
     closed:       'disconnected',
   };
+  const retryBtn = document.getElementById(`retry-${clientId}`);
   el.textContent = labels[state] || state;
   card.classList.remove('participant-card--connected', 'participant-card--connecting', 'participant-card--disconnected');
   if (state === 'connected' || state === 'completed') {
     card.classList.add('participant-card--connected');
+    if (retryBtn) retryBtn.hidden = true;
   } else if (state === 'new' || state === 'checking') {
     card.classList.add('participant-card--connecting');
+    if (retryBtn) retryBtn.hidden = true;
   } else {
     card.classList.add('participant-card--disconnected');
+    if (retryBtn) retryBtn.hidden = false;
   }
+}
+
+async function retryConnection(clientId) {
+  if (peers[clientId]) {
+    peers[clientId].pc.close();
+    peers[clientId].audio.remove();
+    delete peers[clientId];
+  }
+  setConnStatus(clientId, 'new');
+  logPeer(clientId, 'Retrying connection…');
+  await createOffer(clientId);
 }
 
 function removeCard(clientId) {
@@ -375,7 +426,7 @@ function makePc(remoteId) {
   console.log('[voice] created PeerConnection for', remoteId);
 
   pc.ontrack = ({ streams }) => {
-    console.log('[voice] ontrack from', remoteId, '— streams:', streams.length);
+    logPeer(remoteId, `Track received (${streams.length} stream${streams.length !== 1 ? 's' : ''})`);
     const audio = document.createElement('audio');
     audio.srcObject = streams[0];
     document.body.appendChild(audio);
@@ -387,7 +438,7 @@ function makePc(remoteId) {
   };
 
   pc.oniceconnectionstatechange = () => {
-    console.log('[voice] ICE', remoteId, '→', pc.iceConnectionState);
+    logPeer(remoteId, `ICE → ${pc.iceConnectionState}`);
     setConnStatus(remoteId, pc.iceConnectionState);
     if (pc.iceConnectionState === 'failed') {
       console.warn('[voice] ICE failed for', remoteId, '— closing');
@@ -430,7 +481,7 @@ function waitForIceGathering(pc) {
 
 async function createOffer(remoteId) {
   if (peers[remoteId]) return;
-  console.log('[voice] createOffer →', remoteId);
+  logPeer(remoteId, 'Sending offer…');
   const audio = document.createElement('audio'); // placeholder until ontrack fires
   const pc    = makePc(remoteId);
   peers[remoteId] = { pc, audio };
@@ -439,7 +490,7 @@ async function createOffer(remoteId) {
   await pc.setLocalDescription(offer);
   await waitForIceGathering(pc);
 
-  console.log('[voice] sending offer →', remoteId);
+  logPeer(remoteId, 'Offer sent, waiting for answer…');
   await fetch(`${API_BASE}/voice/signal`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -455,7 +506,7 @@ async function createOffer(remoteId) {
 
 async function handleOffer(signal) {
   if (peers[signal.from]) return;
-  console.log('[voice] received offer from', signal.from);
+  logPeer(signal.from, 'Received offer, sending answer…');
   const audio = document.createElement('audio');
   const pc    = makePc(signal.from);
   peers[signal.from] = { pc, audio };
@@ -465,7 +516,7 @@ async function handleOffer(signal) {
   await pc.setLocalDescription(answer);
   await waitForIceGathering(pc);
 
-  console.log('[voice] sending answer →', signal.from);
+  logPeer(signal.from, 'Answer sent');
   await fetch(`${API_BASE}/voice/signal`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -482,7 +533,7 @@ async function handleOffer(signal) {
 async function handleAnswer(signal) {
   const peer = peers[signal.from];
   if (!peer) return;
-  console.log('[voice] received answer from', signal.from);
+  logPeer(signal.from, 'Received answer');
   await peer.pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
 }
 
