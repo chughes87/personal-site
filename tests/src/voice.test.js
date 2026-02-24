@@ -578,7 +578,7 @@ describe('peer logs', () => {
     expect(document.getElementById('peer-log-entries-c2')).not.toBeNull();
   });
 
-  test('no peer log section created for own card', async () => {
+  test('peer log section created for own card with "(you)" label', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({
@@ -593,7 +593,51 @@ describe('peer logs', () => {
     );
     await flushPromises(5);
 
-    expect(document.getElementById('peer-log-c1')).toBeNull();
+    const logEl = document.getElementById('peer-log-c1');
+    expect(logEl).not.toBeNull();
+    expect(logEl.querySelector('.peer-log-summary').textContent).toContain('(you)');
+  });
+
+  test('self log section shows "Joined room." entry after joining', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const entries = document.getElementById('peer-log-entries-c1');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('Joined room.'))).toBe(true);
+  });
+
+  test('muting appends a log entry to the self log section', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    document.getElementById('muteBtn').click();
+
+    const entries = document.getElementById('peer-log-entries-c1');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('Muted mic.'))).toBe(true);
   });
 
   test('ICE state change appends a log entry for the peer', async () => {
