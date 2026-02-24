@@ -618,6 +618,26 @@ describe('peer logs', () => {
     expect(texts.some(t => t.includes('Joined room.'))).toBe(true);
   });
 
+  test('self log section shows "Mic acquired" entry after joining', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const entries = document.getElementById('peer-log-entries-c1');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('Mic acquired'))).toBe(true);
+  });
+
   test('muting appends a log entry to the self log section', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -638,6 +658,97 @@ describe('peer logs', () => {
     const entries = document.getElementById('peer-log-entries-c1');
     const texts = Array.from(entries.children).map(e => e.textContent);
     expect(texts.some(t => t.includes('Muted mic.'))).toBe(true);
+  });
+
+  test('peer log section removed when peer departs via heartbeat', async () => {
+    function makeFetch({ joinParticipants, heartbeatParticipants }) {
+      return jest.fn().mockImplementation((url) => {
+        if (url.includes('/voice/join')) {
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ clientId: 'c1', participants: joinParticipants }),
+          });
+        }
+        if (url.includes('/voice/heartbeat')) {
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ participants: heartbeatParticipants }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue([]) });
+      });
+    }
+
+    global.fetch = makeFetch({
+      joinParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+      heartbeatParticipants: [{ clientId: 'c1', username: 'alice' }],
+    });
+
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    expect(document.getElementById('peer-log-c2')).not.toBeNull();
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat — bob has left
+    await flushPromises(10);
+
+    expect(document.getElementById('peer-log-c2')).toBeNull();
+  });
+
+  test('peer log sections cleared on leaveRoom', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    expect(document.getElementById('peer-log-c1')).not.toBeNull();
+    expect(document.getElementById('peer-log-c2')).not.toBeNull();
+
+    document.getElementById('leaveBtn').click();
+
+    expect(document.getElementById('voiceLogsBody').innerHTML).toBe('');
+  });
+
+  test('makePc logs "PeerConnection created." to peer log section', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    const entries = document.getElementById('peer-log-entries-c2');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('PeerConnection created.'))).toBe(true);
   });
 
   test('ICE state change appends a log entry for the peer', async () => {
