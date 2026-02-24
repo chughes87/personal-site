@@ -226,6 +226,7 @@ async function joinRoom(previousClientId = null) {
     pollTimer      = setInterval(pollSignals,   POLL_MS);
     heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_MS);
     setStatus('In room.');
+    logPeer(myClientId, 'Joined room.');
   } catch (err) {
     console.error('[voice] joinRoom error:', err);
     setStatus('Could not access microphone or join room.');
@@ -300,6 +301,7 @@ function applyMuteState() {
   muteBtn.textContent   = muted ? 'Unmute' : 'Mute';
   muteBtn.setAttribute('aria-pressed', String(muted));
   updateMyCard();
+  logPeer(myClientId, muted ? 'Muted mic.' : 'Unmuted mic.');
 }
 
 muteBtn.addEventListener('click', () => {
@@ -332,8 +334,8 @@ function upsertCard(clientId, username) {
     if (isRemote) {
       card.querySelector('.participant-retry')
         .addEventListener('click', () => retryConnection(clientId));
-      upsertPeerLog(clientId, username);
     }
+    upsertPeerLog(clientId, isRemote ? username : `${username} (you)`);
     participantGrid.appendChild(card);
   }
   return card;
@@ -569,6 +571,14 @@ async function sendHeartbeat() {
     syncParticipants(data.participants);
     for (const p of newComers) {
       await createOffer(p.clientId);
+    }
+    // Promote any peer confirmed by heartbeat that is still stuck on "connecting…"
+    for (const p of data.participants) {
+      if (p.clientId === myClientId) continue;
+      const el = document.getElementById(`conn-${p.clientId}`);
+      if (el && el.textContent === 'connecting…') {
+        setConnStatus(p.clientId, 'connected');
+      }
     }
   } catch (_) { /* retry next tick */ }
 }

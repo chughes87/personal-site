@@ -578,7 +578,7 @@ describe('peer logs', () => {
     expect(document.getElementById('peer-log-entries-c2')).not.toBeNull();
   });
 
-  test('no peer log section created for own card', async () => {
+  test('peer log section created for own card with "(you)" label', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({
@@ -593,7 +593,51 @@ describe('peer logs', () => {
     );
     await flushPromises(5);
 
-    expect(document.getElementById('peer-log-c1')).toBeNull();
+    const logEl = document.getElementById('peer-log-c1');
+    expect(logEl).not.toBeNull();
+    expect(logEl.querySelector('.peer-log-summary').textContent).toContain('(you)');
+  });
+
+  test('self log section shows "Joined room." entry after joining', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    const entries = document.getElementById('peer-log-entries-c1');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('Joined room.'))).toBe(true);
+  });
+
+  test('muting appends a log entry to the self log section', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    document.getElementById('muteBtn').click();
+
+    const entries = document.getElementById('peer-log-entries-c1');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('Muted mic.'))).toBe(true);
   });
 
   test('ICE state change appends a log entry for the peer', async () => {
@@ -896,6 +940,132 @@ describe('TURN config', () => {
     const callArg = global.RTCPeerConnection.mock.calls[0]?.[0];
     expect(callArg.iceServers).toHaveLength(1);
     expect(callArg.iceServers[0].urls).toBe('stun:stun.l.google.com:19302');
+  });
+});
+
+// ── Heartbeat status update ───────────────────────────────────────────────────
+
+describe('heartbeat status update', () => {
+  function makeFetch({ joinParticipants, heartbeatParticipants }) {
+    return jest.fn().mockImplementation((url) => {
+      if (url.includes('/voice/join')) {
+        return Promise.resolve({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ clientId: 'c1', participants: joinParticipants }),
+        });
+      }
+      if (url.includes('/voice/heartbeat')) {
+        return Promise.resolve({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ participants: heartbeatParticipants }),
+        });
+      }
+      // /voice/signals (poll) and /voice/signal (offer/answer)
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue([]) });
+    });
+  }
+
+  test('promotes "connecting…" peer card to "connected" when heartbeat confirms peer', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+      heartbeatParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+    });
+
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    // Bob's card should start at "connecting…" (ICE not yet fired)
+    expect(document.getElementById('conn-c2').textContent).toBe('connecting…');
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    // Heartbeat confirms bob is present → promoted to "connected"
+    const connEl = document.getElementById('conn-c2');
+    expect(connEl.textContent).toBe('connected');
+    expect(document.getElementById('card-c2').classList.contains('participant-card--connected')).toBe(true);
+  });
+
+  test('does not downgrade a peer already marked "connected" by ICE', async () => {
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState:          'complete',
+        iceConnectionState:         'new',
+        localDescription:           { sdp: 'mock-sdp' },
+        addTrack:                   jest.fn(),
+        createOffer:                jest.fn().mockResolvedValue({}),
+        setLocalDescription:        jest.fn().mockResolvedValue(),
+        setRemoteDescription:       jest.fn().mockResolvedValue(),
+        createAnswer:               jest.fn().mockResolvedValue({}),
+        close:                      jest.fn(),
+        addEventListener:           jest.fn(),
+        removeEventListener:        jest.fn(),
+        oniceconnectionstatechange: null,
+      };
+      return capturedPc;
+    });
+
+    global.fetch = makeFetch({
+      joinParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+      heartbeatParticipants: [
+        { clientId: 'c1', username: 'alice' },
+        { clientId: 'c2', username: 'bob' },
+      ],
+    });
+
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    // Simulate ICE reaching connected before heartbeat fires
+    capturedPc.iceConnectionState = 'connected';
+    capturedPc.oniceconnectionstatechange();
+
+    expect(document.getElementById('conn-c2').textContent).toBe('connected');
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    // Still connected — heartbeat promotion is idempotent (el.textContent !== 'connecting…')
+    expect(document.getElementById('conn-c2').textContent).toBe('connected');
+    expect(document.getElementById('card-c2').classList.contains('participant-card--connected')).toBe(true);
+  });
+
+  test('does not affect own card (no conn element for self)', async () => {
+    global.fetch = makeFetch({
+      joinParticipants: [{ clientId: 'c1', username: 'alice' }],
+      heartbeatParticipants: [{ clientId: 'c1', username: 'alice' }],
+    });
+
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    jest.advanceTimersByTime(15000); // trigger heartbeat
+    await flushPromises(10);
+
+    // Self card never gets a conn element
+    expect(document.getElementById('conn-c1')).toBeNull();
   });
 });
 
