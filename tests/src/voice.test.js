@@ -18,6 +18,10 @@ const HTML = `
     <button id="leaveBtn">Leave</button>
     <button id="audioUnblockBtn" hidden>Enable audio</button>
     <p id="voiceStatus"></p>
+    <details id="voiceLogs">
+      <summary>Connection logs</summary>
+      <div id="voiceLogsBody"></div>
+    </details>
   </div>
 `;
 
@@ -433,6 +437,207 @@ describe('connection status', () => {
     const connEl  = document.getElementById('conn-c2');
     expect(connEl.textContent).toBe('connected');
     expect(bobCard.classList.contains('participant-card--connected')).toBe(true);
+  });
+});
+
+// ── Retry button ─────────────────────────────────────────────────────────────
+
+describe('retry button', () => {
+  function makeTwoPeerFetch() {
+    return jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+  }
+
+  function captureAndJoin() {
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState:          'complete',
+        iceConnectionState:         'new',
+        localDescription:           { sdp: 'mock-sdp' },
+        addTrack:                   jest.fn(),
+        createOffer:                jest.fn().mockResolvedValue({}),
+        setLocalDescription:        jest.fn().mockResolvedValue(),
+        setRemoteDescription:       jest.fn().mockResolvedValue(),
+        createAnswer:               jest.fn().mockResolvedValue({}),
+        close:                      jest.fn(),
+        addEventListener:           jest.fn(),
+        removeEventListener:        jest.fn(),
+        oniceconnectionstatechange: null,
+      };
+      return capturedPc;
+    });
+    global.fetch = makeTwoPeerFetch();
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    return () => capturedPc;
+  }
+
+  test('retry button is hidden initially on remote participant card', async () => {
+    captureAndJoin();
+    await flushPromises(10);
+
+    const btn = document.getElementById('retry-c2');
+    expect(btn).not.toBeNull();
+    expect(btn.hidden).toBe(true);
+  });
+
+  test('retry button shown when ICE state is failed', async () => {
+    const getPC = captureAndJoin();
+    await flushPromises(10);
+
+    getPC().iceConnectionState = 'failed';
+    getPC().oniceconnectionstatechange();
+
+    expect(document.getElementById('retry-c2').hidden).toBe(false);
+  });
+
+  test('retry button shown when ICE state is disconnected', async () => {
+    const getPC = captureAndJoin();
+    await flushPromises(10);
+
+    getPC().iceConnectionState = 'disconnected';
+    getPC().oniceconnectionstatechange();
+
+    expect(document.getElementById('retry-c2').hidden).toBe(false);
+  });
+
+  test('retry button hidden when ICE state is connected', async () => {
+    const getPC = captureAndJoin();
+    await flushPromises(10);
+
+    // First make it fail so the button shows
+    getPC().iceConnectionState = 'failed';
+    getPC().oniceconnectionstatechange();
+    expect(document.getElementById('retry-c2').hidden).toBe(false);
+
+    // Now a new connection becomes connected
+    getPC().iceConnectionState = 'connected';
+    getPC().oniceconnectionstatechange();
+    expect(document.getElementById('retry-c2').hidden).toBe(true);
+  });
+
+  test('clicking retry closes old PC and sends a new offer', async () => {
+    const getPC = captureAndJoin();
+    await flushPromises(10);
+
+    const firstPc = getPC();
+    // Simulate failure so retry button appears
+    firstPc.iceConnectionState = 'failed';
+    firstPc.oniceconnectionstatechange();
+    await flushPromises(2);
+
+    const signalCallsBefore = fetch.mock.calls.filter(
+      ([url]) => url === `${API}/voice/signal`
+    ).length;
+
+    document.getElementById('retry-c2').click();
+    await flushPromises(10);
+
+    expect(firstPc.close).toHaveBeenCalled();
+    const signalCallsAfter = fetch.mock.calls.filter(
+      ([url]) => url === `${API}/voice/signal`
+    ).length;
+    expect(signalCallsAfter).toBeGreaterThan(signalCallsBefore);
+  });
+});
+
+// ── Peer logs ─────────────────────────────────────────────────────────────────
+
+describe('peer logs', () => {
+  test('peer log section created for remote participant', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    expect(document.getElementById('peer-log-c2')).not.toBeNull();
+    expect(document.getElementById('peer-log-entries-c2')).not.toBeNull();
+  });
+
+  test('no peer log section created for own card', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [{ clientId: 'c1', username: 'alice' }],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(5);
+
+    expect(document.getElementById('peer-log-c1')).toBeNull();
+  });
+
+  test('ICE state change appends a log entry for the peer', async () => {
+    let capturedPc;
+    global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+      capturedPc = {
+        iceGatheringState:          'complete',
+        iceConnectionState:         'new',
+        localDescription:           { sdp: 'mock-sdp' },
+        addTrack:                   jest.fn(),
+        createOffer:                jest.fn().mockResolvedValue({}),
+        setLocalDescription:        jest.fn().mockResolvedValue(),
+        setRemoteDescription:       jest.fn().mockResolvedValue(),
+        createAnswer:               jest.fn().mockResolvedValue({}),
+        close:                      jest.fn(),
+        addEventListener:           jest.fn(),
+        removeEventListener:        jest.fn(),
+        oniceconnectionstatechange: null,
+      };
+      return capturedPc;
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        clientId: 'c1',
+        participants: [
+          { clientId: 'c1', username: 'alice' },
+          { clientId: 'c2', username: 'bob' },
+        ],
+      }),
+    });
+    localStorage.setItem('voice_username', 'alice');
+    loadVoice(API);
+    document.getElementById('voiceGateForm').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await flushPromises(10);
+
+    capturedPc.iceConnectionState = 'connected';
+    capturedPc.oniceconnectionstatechange();
+
+    const entries = document.getElementById('peer-log-entries-c2');
+    const texts = Array.from(entries.children).map(e => e.textContent);
+    expect(texts.some(t => t.includes('ICE → connected'))).toBe(true);
   });
 });
 
