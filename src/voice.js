@@ -199,7 +199,7 @@ async function joinRoom(previousClientId = null) {
 
     pollTimer      = setInterval(pollSignals,   POLL_MS);
     heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_MS);
-    setStatus('Connected.');
+    setStatus('In room.');
   } catch (err) {
     console.error('[voice] joinRoom error:', err);
     setStatus('Could not access microphone or join room.');
@@ -290,13 +290,41 @@ function upsertCard(clientId, username) {
     card = document.createElement('div');
     card.id = cardId(clientId);
     card.className = 'participant-card';
+    const connSpan = clientId !== myClientId
+      ? `<span class="participant-conn" id="conn-${clientId}">connecting…</span>`
+      : '';
     card.innerHTML = `
       <div class="participant-avatar">${esc(username.charAt(0).toUpperCase())}</div>
       <span class="participant-name">${esc(username)}</span>
+      ${connSpan}
     `;
     participantGrid.appendChild(card);
   }
   return card;
+}
+
+function setConnStatus(clientId, state) {
+  const el = document.getElementById(`conn-${clientId}`);
+  if (!el) return;
+  const card = document.getElementById(cardId(clientId));
+  const labels = {
+    new:          'connecting…',
+    checking:     'connecting…',
+    connected:    'connected',
+    completed:    'connected',
+    disconnected: 'disconnected',
+    failed:       'failed',
+    closed:       'disconnected',
+  };
+  el.textContent = labels[state] || state;
+  card.classList.remove('participant-card--connected', 'participant-card--connecting', 'participant-card--disconnected');
+  if (state === 'connected' || state === 'completed') {
+    card.classList.add('participant-card--connected');
+  } else if (state === 'new' || state === 'checking') {
+    card.classList.add('participant-card--connecting');
+  } else {
+    card.classList.add('participant-card--disconnected');
+  }
 }
 
 function removeCard(clientId) {
@@ -360,6 +388,7 @@ function makePc(remoteId) {
 
   pc.oniceconnectionstatechange = () => {
     console.log('[voice] ICE', remoteId, '→', pc.iceConnectionState);
+    setConnStatus(remoteId, pc.iceConnectionState);
     if (pc.iceConnectionState === 'failed') {
       console.warn('[voice] ICE failed for', remoteId, '— closing');
       pc.close();

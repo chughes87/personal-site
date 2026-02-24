@@ -849,6 +849,20 @@ a:hover { opacity: 0.8; }
   font-weight: 400;
 }
 
+.participant-conn {
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  letter-spacing: 0.01em;
+}
+
+.participant-card--connected .participant-conn {
+  color: #3fb950;
+}
+
+.participant-card--disconnected .participant-conn {
+  color: #f85149;
+}
+
 @keyframes voice-pulse {
   0%, 100% { box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 6px color-mix(in srgb, var(--color-accent) 25%, transparent); }
   50%       { box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 10px color-mix(in srgb, var(--color-accent) 10%, transparent); }
