@@ -570,6 +570,14 @@ async function sendHeartbeat() {
     for (const p of newComers) {
       await createOffer(p.clientId);
     }
+    // Promote any peer confirmed by heartbeat that is still stuck on "connecting…"
+    for (const p of data.participants) {
+      if (p.clientId === myClientId) continue;
+      const el = document.getElementById(`conn-${p.clientId}`);
+      if (el && el.textContent === 'connecting…') {
+        setConnStatus(p.clientId, 'connected');
+      }
+    }
   } catch (_) { /* retry next tick */ }
 }
 
