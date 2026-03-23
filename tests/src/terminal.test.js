@@ -2,30 +2,33 @@
  * @jest-environment jsdom
  */
 
-let TerminalRenderer, repeat, escapeHtml;
+let TerminalRenderer, LayoutContext, indexPage, repeat, escapeHtml, C;
 
 beforeEach(() => {
   jest.resetModules();
   jest.restoreAllMocks();
   document.body.innerHTML = '<div id="terminalWrap"><pre id="terminal"></pre></div>';
 
-  // Mock clientWidth/clientHeight on the wrapper
   Object.defineProperty(document.getElementById('terminalWrap'), 'clientWidth', { value: 800, configurable: true });
   Object.defineProperty(document.getElementById('terminalWrap'), 'clientHeight', { value: 600, configurable: true });
 
   var mod = require('../../src/terminal');
   TerminalRenderer = mod.TerminalRenderer;
+  LayoutContext = mod.LayoutContext;
+  indexPage = mod.indexPage;
   repeat = mod.repeat;
   escapeHtml = mod.escapeHtml;
+  C = mod.C;
 });
 
-// Helper: mock measureCell to set fixed cell dimensions
 function mockMeasure(renderer) {
   renderer.measureCell = function () {
     this.cellW = 8;
     this.cellH = 16;
   };
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 describe('helpers', () => {
   test('repeat generates correct string', () => {
@@ -39,6 +42,8 @@ describe('helpers', () => {
   });
 });
 
+// ── Low-level renderer ───────────────────────────────────────────────────────
+
 describe('TerminalRenderer', () => {
   let renderer, pre;
 
@@ -48,8 +53,6 @@ describe('TerminalRenderer', () => {
   });
 
   test('measureCell sets cellW and cellH from probe element', () => {
-    // jsdom returns 0 for getBoundingClientRect, so measureCell gets 0s
-    // In a real browser it measures a character; we test via mockMeasure
     mockMeasure(renderer);
     renderer.measureCell();
     expect(renderer.cellW).toBe(8);
@@ -59,8 +62,8 @@ describe('TerminalRenderer', () => {
   test('resize calculates cols and rows from viewport', () => {
     mockMeasure(renderer);
     renderer.resize();
-    expect(renderer.cols).toBe(100); // 800 / 8
-    expect(renderer.rows).toBe(37);  // 600 / 16
+    expect(renderer.cols).toBe(100);
+    expect(renderer.rows).toBe(37);
   });
 
   test('allocate creates buffer of correct dimensions', () => {
@@ -89,13 +92,11 @@ describe('TerminalRenderer', () => {
     renderer.write(0, 8, 'abcdef');
     expect(renderer.buffer[0][8].ch).toBe('a');
     expect(renderer.buffer[0][9].ch).toBe('b');
-    // c, d, e, f should be clipped
   });
 
   test('write ignores out-of-bounds rows', () => {
     renderer.cols = 10;
     renderer.allocate(3);
-    // Should not throw
     renderer.write(-1, 0, 'test');
     renderer.write(5, 0, 'test');
   });
@@ -110,15 +111,6 @@ describe('TerminalRenderer', () => {
     expect(renderer.buffer[2][3].ch).toBe('D');
   });
 
-  test('writeCenter centers text horizontally', () => {
-    renderer.cols = 20;
-    renderer.allocate(3);
-    var col = renderer.writeCenter(1, 'hi', { fg: '#fff' });
-    expect(col).toBe(9); // (20 - 2) / 2
-    expect(renderer.buffer[1][9].ch).toBe('h');
-    expect(renderer.buffer[1][10].ch).toBe('i');
-  });
-
   test('addLink registers metadata and groups', () => {
     renderer.cols = 30;
     renderer.allocate(3);
@@ -128,20 +120,6 @@ describe('TerminalRenderer', () => {
     expect(renderer.meta[1][8].group).toBe('grp1');
     expect(renderer.meta[1][9]).toBeNull();
     expect(renderer.groups['grp1'].cells.length).toBe(4);
-  });
-
-  test('drawButton creates a 3-row box with link metadata', () => {
-    renderer.cols = 30;
-    renderer.allocate(5);
-    var w = renderer.drawButton(0, 2, 'Click', 'https://x.com', { fg: '#0ff' });
-    expect(w).toBe(9); // 'Click'.length + 4
-    expect(renderer.buffer[0][2].ch).toBe('┌');
-    expect(renderer.buffer[1][4].ch).toBe('C');
-    expect(renderer.buffer[2][2].ch).toBe('└');
-    // All 3 rows should be linked
-    expect(renderer.meta[0][2].group).toBe('btn_Click');
-    expect(renderer.meta[1][2].group).toBe('btn_Click');
-    expect(renderer.meta[2][2].group).toBe('btn_Click');
   });
 
   test('flush generates HTML with spans', () => {
@@ -166,53 +144,16 @@ describe('TerminalRenderer', () => {
     renderer.cellW = 8;
     renderer.cellH = 16;
     var pos = renderer.pixelToGrid(20, 40);
-    expect(pos.col).toBe(2);  // 20 / 8 = 2.5 → 2
-    expect(pos.row).toBe(2);  // 40 / 16 = 2.5 → 2
-  });
-
-  test('drawHRule fills the row with ─', () => {
-    renderer.cols = 10;
-    renderer.allocate(3);
-    renderer.drawHRule(1);
-    for (var c = 0; c < 10; c++) {
-      expect(renderer.buffer[1][c].ch).toBe('─');
-    }
+    expect(pos.col).toBe(2);
+    expect(pos.row).toBe(2);
   });
 
   test('writeWrapped breaks long text across rows', () => {
     renderer.cols = 30;
     renderer.allocate(10);
     var endRow = renderer.writeWrapped(0, 2, 'the quick brown fox jumps over the lazy dog', 15, {});
-    // "the quick brown" = 15 chars → row 0
-    // "fox jumps over" → row 1
-    // "the lazy dog" → row 2
     expect(endRow).toBeGreaterThan(2);
     expect(renderer.buffer[0][2].ch).toBe('t');
-  });
-
-  test('render produces a full layout without errors', () => {
-    mockMeasure(renderer);
-    renderer.resize();
-    // Should not throw
-    renderer.render();
-    // Check that some expected content exists in the HTML
-    // ASCII art header uses block characters, not literal "CHARLES"
-    expect(pre.innerHTML).toContain('██');
-    expect(pre.innerHTML).toContain('Senior Software Engineer');
-    expect(pre.innerHTML).toContain('ABOUT');
-    expect(pre.innerHTML).toContain('SKILLS');
-    expect(pre.innerHTML).toContain('PROJECTS');
-    expect(pre.innerHTML).toContain('CONTACT');
-  });
-
-  test('section offsets are populated after render', () => {
-    mockMeasure(renderer);
-    renderer.resize();
-    renderer.render();
-    expect(typeof renderer.sectionOffsets['about']).toBe('number');
-    expect(typeof renderer.sectionOffsets['skills']).toBe('number');
-    expect(typeof renderer.sectionOffsets['projects']).toBe('number');
-    expect(typeof renderer.sectionOffsets['contact']).toBe('number');
   });
 
   test('hover changes hovered group and re-renders', () => {
@@ -227,10 +168,197 @@ describe('TerminalRenderer', () => {
     renderer.flush();
     var after = pre.innerHTML;
 
-    // The hover should change the rendering
     expect(after).not.toBe(before);
   });
 });
+
+// ── LayoutContext ─────────────────────────────────────────────────────────────
+
+describe('LayoutContext', () => {
+  let renderer, ctx;
+
+  beforeEach(() => {
+    renderer = new TerminalRenderer(document.getElementById('terminal'));
+    renderer.cols = 80;
+    renderer.allocate(100);
+    ctx = new LayoutContext(renderer);
+  });
+
+  test('spacer advances the cursor', () => {
+    expect(ctx.row).toBe(0);
+    ctx.spacer(3);
+    expect(ctx.row).toBe(3);
+    ctx.spacer();
+    expect(ctx.row).toBe(4);
+  });
+
+  test('rule draws a horizontal line and advances cursor', () => {
+    ctx.rule();
+    expect(renderer.buffer[0][0].ch).toBe('─');
+    expect(renderer.buffer[0][79].ch).toBe('─');
+    expect(ctx.row).toBe(1);
+  });
+
+  test('centerText centers text and advances cursor', () => {
+    ctx.centerText('hi', { fg: '#fff' });
+    expect(renderer.buffer[0][39].ch).toBe('h');
+    expect(renderer.buffer[0][40].ch).toBe('i');
+    expect(ctx.row).toBe(1);
+  });
+
+  test('text wraps text at content width and advances cursor', () => {
+    ctx.text('hello world');
+    expect(ctx.row).toBe(1);
+    // Text should be written at pad offset
+    expect(renderer.buffer[0][ctx.pad].ch).toBe('h');
+  });
+
+  test('link writes clickable text', () => {
+    ctx.link('> click me', 'https://example.com');
+    expect(renderer.buffer[0][ctx.pad].ch).toBe('>');
+    expect(renderer.meta[0][ctx.pad].href).toBe('https://example.com');
+    expect(ctx.row).toBe(1);
+  });
+
+  test('asciiArt centers multiline block', () => {
+    ctx.asciiArt(['AAA', 'BBB'], { style: { fg: '#ff0' } });
+    expect(ctx.row).toBe(2);
+  });
+
+  test('asciiArt uses fallback for narrow screens', () => {
+    renderer.cols = 40;
+    ctx = new LayoutContext(renderer);
+    ctx.asciiArt(['WIDE_ART_PLACEHOLDER'], {
+      fallback: ['SM'],
+      minCols: 60,
+      style: { fg: '#ff0' }
+    });
+    // Should have used the small fallback (2 chars), not the wide one
+    var col = Math.floor((40 - 2) / 2);
+    expect(renderer.buffer[0][col].ch).toBe('S');
+    expect(ctx.row).toBe(1);
+  });
+
+  test('button draws a centered box-drawn button', () => {
+    ctx.button('OK', 'https://x.com');
+    // ┌────┐ │ OK │ └────┘ — 3 rows
+    expect(ctx.row).toBe(3);
+    var w = 6; // "OK".length + 4
+    var col = Math.floor((80 - w) / 2);
+    expect(renderer.buffer[0][col].ch).toBe('┌');
+    expect(renderer.meta[1][col].group).toBe('btn_OK');
+  });
+
+  test('buttonRow draws multiple buttons side by side', () => {
+    ctx.buttonRow([
+      { label: 'A', href: '#a' },
+      { label: 'B', href: '#b' }
+    ]);
+    expect(ctx.row).toBe(3);
+    // Both buttons should be linked
+    expect(Object.keys(renderer.groups)).toContain('btn_A');
+    expect(Object.keys(renderer.groups)).toContain('btn_B');
+  });
+
+  test('section draws rule, title, and content', () => {
+    ctx.section('test', 'TEST', function () {
+      ctx.text('body text');
+    });
+    expect(renderer.sectionOffsets['test']).toBeDefined();
+    // Should contain the title
+    var found = false;
+    for (var c = 0; c < 80; c++) {
+      if (renderer.buffer[2][c].ch === '>' && renderer.buffer[2][c + 1].ch === '>') {
+        found = true;
+        break;
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  test('boxGrid draws titled boxes', () => {
+    ctx.boxGrid([
+      { title: 'Box1', items: ['a', 'b'] },
+      { title: 'Box2', items: ['c', 'd'] }
+    ], { width: 12, gap: 2 });
+    // 1 title + 2 items + 1 bottom = 4 rows
+    expect(ctx.row).toBe(4);
+  });
+
+  test('card draws a box with lines', () => {
+    ctx.card({
+      lines: [
+        { text: 'Title', style: { fg: '#fff', bold: true } },
+        { blank: true },
+        { text: 'Desc' }
+      ]
+    });
+    // top + 3 lines + bottom = 5
+    expect(ctx.row).toBe(5);
+  });
+
+  test('card with link adds clickable text below', () => {
+    ctx.card({
+      lines: [{ text: 'X' }],
+      link: { text: '> source', href: 'https://example.com' }
+    });
+    // top + 1 line + bottom + link = 4
+    expect(ctx.row).toBe(4);
+    // The link row should have metadata
+    expect(renderer.meta[3][Math.floor((80 - 56) / 2)].href).toBe('https://example.com');
+  });
+
+  test('nav draws logo and nav items', () => {
+    ctx.nav([
+      { label: 'About', href: '#about' },
+      { label: 'Chat', href: '/chat.html' }
+    ]);
+    // spacer + content + spacer + doubleRule = row 3
+    expect(ctx.row).toBe(3);
+    // CH logo should be at row 1, col 1
+    expect(renderer.buffer[1][1].ch).toBe('C');
+    expect(renderer.buffer[1][2].ch).toBe('H');
+  });
+
+  test('footer draws a rule and centered text', () => {
+    ctx.footer();
+    expect(ctx.row).toBe(3); // rule + text + spacer
+  });
+});
+
+// ── Full page render ─────────────────────────────────────────────────────────
+
+describe('indexPage', () => {
+  test('renders complete page with all sections', () => {
+    var pre = document.getElementById('terminal');
+    var renderer = new TerminalRenderer(pre);
+    mockMeasure(renderer);
+    renderer.resize();
+    renderer.render(indexPage);
+
+    var html = pre.innerHTML;
+    expect(html).toContain('██');
+    expect(html).toContain('Senior Software Engineer');
+    expect(html).toContain('ABOUT');
+    expect(html).toContain('SKILLS');
+    expect(html).toContain('PROJECTS');
+    expect(html).toContain('CONTACT');
+  });
+
+  test('populates section offsets', () => {
+    var renderer = new TerminalRenderer(document.getElementById('terminal'));
+    mockMeasure(renderer);
+    renderer.resize();
+    renderer.render(indexPage);
+
+    expect(typeof renderer.sectionOffsets['about']).toBe('number');
+    expect(typeof renderer.sectionOffsets['skills']).toBe('number');
+    expect(typeof renderer.sectionOffsets['projects']).toBe('number');
+    expect(typeof renderer.sectionOffsets['contact']).toBe('number');
+  });
+});
+
+// ── main.js guard ────────────────────────────────────────────────────────────
 
 describe('main.js guard', () => {
   test('main.js does not throw when themeToggle is missing', () => {
