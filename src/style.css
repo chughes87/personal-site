@@ -1066,3 +1066,76 @@ a:hover { opacity: 0.8; }
     padding: 0.875rem 1rem;
   }
 }
+
+/* ============================================================
+   Terminal page
+   ============================================================ */
+.terminal-page {
+  margin: 0;
+  padding: 0;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+#terminalWrap {
+  width: 100vw;
+  height: 100vh;
+  height: 100svh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #0d1117;
+}
+
+#terminal {
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", "DejaVu Sans Mono", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+  color: #33ff33;
+  white-space: pre;
+  cursor: default;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+#terminal::selection,
+#terminal *::selection {
+  background: #33ff33;
+  color: #0d1117;
+}
+
+/* Subtle scanline effect */
+#terminalWrap::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  z-index: 1;
+}
+
+/* Noscript fallback */
+.noscript-fallback {
+  padding: 2rem;
+  color: #e6edf3;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+}
+
+@media (max-width: 480px) {
+  #terminal {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  #terminal {
+    font-size: 12px;
+  }
+}
