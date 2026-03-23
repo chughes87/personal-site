@@ -1121,8 +1121,12 @@ a:hover { opacity: 0.8; }
   z-index: 1;
 }
 
-/* Hide noscript content when JS is active */
-.terminal-page noscript { display: none; }
+/* Noscript fallback */
+.noscript-fallback {
+  padding: 2rem;
+  color: #e6edf3;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+}
 
 @media (max-width: 480px) {
   #terminal {

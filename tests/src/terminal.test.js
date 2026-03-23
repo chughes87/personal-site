@@ -6,17 +6,8 @@ let TerminalRenderer, repeat, escapeHtml;
 
 beforeEach(() => {
   jest.resetModules();
-  document.body.innerHTML = '<div id="terminalWrap" style="width:800px;height:600px;"><pre id="terminal"></pre></div>';
-
-  // Mock getBoundingClientRect for cell measurement
-  const origCreate = document.createElement.bind(document);
-  jest.spyOn(document, 'createElement').mockImplementation(function (tag) {
-    var el = origCreate(tag);
-    if (tag === 'span') {
-      el.getBoundingClientRect = () => ({ width: 8, height: 16, top: 0, left: 0, right: 8, bottom: 16 });
-    }
-    return el;
-  });
+  jest.restoreAllMocks();
+  document.body.innerHTML = '<div id="terminalWrap"><pre id="terminal"></pre></div>';
 
   // Mock clientWidth/clientHeight on the wrapper
   Object.defineProperty(document.getElementById('terminalWrap'), 'clientWidth', { value: 800, configurable: true });
@@ -27,6 +18,14 @@ beforeEach(() => {
   repeat = mod.repeat;
   escapeHtml = mod.escapeHtml;
 });
+
+// Helper: mock measureCell to set fixed cell dimensions
+function mockMeasure(renderer) {
+  renderer.measureCell = function () {
+    this.cellW = 8;
+    this.cellH = 16;
+  };
+}
 
 describe('helpers', () => {
   test('repeat generates correct string', () => {
@@ -48,13 +47,17 @@ describe('TerminalRenderer', () => {
     renderer = new TerminalRenderer(pre);
   });
 
-  test('measureCell gets dimensions from probe element', () => {
+  test('measureCell sets cellW and cellH from probe element', () => {
+    // jsdom returns 0 for getBoundingClientRect, so measureCell gets 0s
+    // In a real browser it measures a character; we test via mockMeasure
+    mockMeasure(renderer);
     renderer.measureCell();
     expect(renderer.cellW).toBe(8);
     expect(renderer.cellH).toBe(16);
   });
 
   test('resize calculates cols and rows from viewport', () => {
+    mockMeasure(renderer);
     renderer.resize();
     expect(renderer.cols).toBe(100); // 800 / 8
     expect(renderer.rows).toBe(37);  // 600 / 16
@@ -188,6 +191,7 @@ describe('TerminalRenderer', () => {
   });
 
   test('render produces a full layout without errors', () => {
+    mockMeasure(renderer);
     renderer.resize();
     // Should not throw
     renderer.render();
@@ -201,6 +205,7 @@ describe('TerminalRenderer', () => {
   });
 
   test('section offsets are populated after render', () => {
+    mockMeasure(renderer);
     renderer.resize();
     renderer.render();
     expect(typeof renderer.sectionOffsets['about']).toBe('number');
