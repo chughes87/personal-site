@@ -117,7 +117,7 @@
 
   TerminalRenderer.prototype.addLink = function (row, col, len, href, groupId) {
     if (!this.groups[groupId]) {
-      this.groups[groupId] = { href: href, cells: [] };
+      this.groups[groupId] = { href: href, cells: [], rows: [] };
     }
     for (var i = 0; i < len; i++) {
       var c = col + i;
@@ -125,55 +125,87 @@
       this.meta[row][c] = { href: href, group: groupId };
       this.groups[groupId].cells.push({ r: row, c: c });
     }
+    if (this.groups[groupId].rows.indexOf(row) === -1) {
+      this.groups[groupId].rows.push(row);
+    }
+  };
+
+  TerminalRenderer.prototype.flushRow = function (r) {
+    var row = this.buffer[r];
+    var parts = [];
+
+    // Find last non-trivial column to avoid rendering trailing whitespace
+    var rowCols = 0;
+    for (var k = this.cols - 1; k >= 0; k--) {
+      var tc = row[k];
+      var tm = this.meta[r][k];
+      var hasHoverBg = tm && tm.group === this.hoveredGroup;
+      if (tc.ch !== ' ' || tc.bg !== null || tc.bold || hasHoverBg) {
+        rowCols = k + 1;
+        break;
+      }
+    }
+
+    var i = 0;
+    while (i < rowCols) {
+      var cell = row[i];
+      var fg = cell.fg;
+      var bg = cell.bg;
+      var bold = cell.bold;
+
+      var m = this.meta[r][i];
+      if (m && m.group === this.hoveredGroup) {
+        bg = C.hoverBg;
+        fg = C.cyan;
+      }
+
+      var run = cell.ch;
+      var j = i + 1;
+      while (j < rowCols) {
+        var next = row[j];
+        var nfg = next.fg;
+        var nbg = next.bg;
+        var nbold = next.bold;
+        var nm = this.meta[r][j];
+        if (nm && nm.group === this.hoveredGroup) {
+          nbg = C.hoverBg;
+          nfg = C.cyan;
+        }
+        if (nfg === fg && nbg === bg && nbold === bold) {
+          run += next.ch;
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      var escaped = escapeHtml(run);
+      var styles = 'color:' + fg;
+      if (bg) styles += ';background:' + bg;
+      if (bold) styles += ';font-weight:bold';
+      parts.push('<span style="' + styles + '">' + escaped + '</span>');
+      i = j;
+    }
+
+    return parts.join('');
   };
 
   TerminalRenderer.prototype.flush = function () {
-    var parts = [];
+    var html = [];
     for (var r = 0; r < this.totalRows; r++) {
-      var row = this.buffer[r];
-      var i = 0;
-      while (i < this.cols) {
-        var cell = row[i];
-        var fg = cell.fg;
-        var bg = cell.bg;
-        var bold = cell.bold;
-
-        var m = this.meta[r][i];
-        if (m && m.group === this.hoveredGroup) {
-          bg = C.hoverBg;
-          fg = C.cyan;
-        }
-
-        var run = cell.ch;
-        var j = i + 1;
-        while (j < this.cols) {
-          var next = row[j];
-          var nfg = next.fg;
-          var nbg = next.bg;
-          var nbold = next.bold;
-          var nm = this.meta[r][j];
-          if (nm && nm.group === this.hoveredGroup) {
-            nbg = C.hoverBg;
-            nfg = C.cyan;
-          }
-          if (nfg === fg && nbg === bg && nbold === bold) {
-            run += next.ch;
-            j++;
-          } else {
-            break;
-          }
-        }
-
-        var escaped = escapeHtml(run);
-        var styles = 'color:' + fg;
-        if (bg) styles += ';background:' + bg;
-        if (bold) styles += ';font-weight:bold';
-        parts.push('<span style="' + styles + '">' + escaped + '</span>');
-        i = j;
-      }
-      if (r < this.totalRows - 1) parts.push('\n');
+      html.push('<div>' + this.flushRow(r) + '</div>');
     }
-    this.pre.innerHTML = parts.join('');
+    this.pre.innerHTML = html.join('');
+    this.rowEls = Array.prototype.slice.call(this.pre.children);
+  };
+
+  TerminalRenderer.prototype.flushRows = function (rows) {
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r >= 0 && r < this.totalRows && this.rowEls && this.rowEls[r]) {
+        this.rowEls[r].innerHTML = this.flushRow(r);
+      }
+    }
   };
 
   TerminalRenderer.prototype.pixelToGrid = function (x, y) {
@@ -196,16 +228,25 @@
         ? self.meta[pos.row][pos.col] : null;
       var newGroup = m ? m.group : null;
       if (newGroup !== self.hoveredGroup) {
+        var dirtyRows = [];
+        if (self.hoveredGroup && self.groups[self.hoveredGroup]) {
+          dirtyRows = dirtyRows.concat(self.groups[self.hoveredGroup].rows);
+        }
         self.hoveredGroup = newGroup;
-        self.flush();
+        if (newGroup && self.groups[newGroup]) {
+          dirtyRows = dirtyRows.concat(self.groups[newGroup].rows);
+        }
+        self.flushRows(dirtyRows);
         self.pre.style.cursor = newGroup ? 'pointer' : 'default';
       }
     });
 
     this.pre.addEventListener('mouseleave', function () {
       if (self.hoveredGroup) {
+        var dirtyRows = self.groups[self.hoveredGroup]
+          ? self.groups[self.hoveredGroup].rows : [];
         self.hoveredGroup = null;
-        self.flush();
+        self.flushRows(dirtyRows);
         self.pre.style.cursor = 'default';
       }
     });
@@ -655,8 +696,6 @@
       );
       ctx.spacer(1);
       ctx.link('> Email: cjhughes87@pm.me', 'mailto:cjhughes87@pm.me');
-      ctx.spacer(1);
-      ctx.button('Say Hello', 'mailto:cjhughes87@pm.me', { fg: C.cyan });
     });
 
     ctx.spacer(1);

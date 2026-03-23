@@ -1099,6 +1099,10 @@ a:hover { opacity: 0.8; }
   min-height: 100svh;
 }
 
+#terminal > div {
+  min-height: 1.2em;
+}
+
 #terminal::selection,
 #terminal *::selection {
   background: #33ff33;
