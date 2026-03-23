@@ -131,8 +131,21 @@
     var parts = [];
     for (var r = 0; r < this.totalRows; r++) {
       var row = this.buffer[r];
+
+      // Find last non-trivial column to avoid rendering trailing whitespace
+      var rowCols = 0;
+      for (var k = this.cols - 1; k >= 0; k--) {
+        var tc = row[k];
+        var tm = this.meta[r][k];
+        var hasHoverBg = tm && tm.group === this.hoveredGroup;
+        if (tc.ch !== ' ' || tc.bg !== null || tc.bold || hasHoverBg) {
+          rowCols = k + 1;
+          break;
+        }
+      }
+
       var i = 0;
-      while (i < this.cols) {
+      while (i < rowCols) {
         var cell = row[i];
         var fg = cell.fg;
         var bg = cell.bg;

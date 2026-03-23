@@ -156,6 +156,18 @@ describe('TerminalRenderer', () => {
     expect(renderer.buffer[0][2].ch).toBe('t');
   });
 
+  test('flush trims trailing whitespace spans', () => {
+    renderer.cols = 10;
+    renderer.allocate(1);
+    renderer.write(0, 0, 'hi', { fg: '#ff0000' });
+    renderer.flush();
+    // "hi" is at cols 0-1; cols 2-9 are default spaces — should be trimmed
+    var spans = pre.querySelectorAll('span');
+    var totalChars = 0;
+    spans.forEach(function (s) { totalChars += s.textContent.length; });
+    expect(totalChars).toBe(2);
+  });
+
   test('hover changes hovered group and re-renders', () => {
     renderer.cols = 30;
     renderer.allocate(3);
