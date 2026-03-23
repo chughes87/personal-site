@@ -122,13 +122,20 @@ describe('TerminalRenderer', () => {
     expect(renderer.groups['grp1'].cells.length).toBe(4);
   });
 
-  test('flush generates HTML with spans', () => {
+  test('flush generates HTML with CSS class spans', () => {
     renderer.cols = 5;
     renderer.allocate(1);
     renderer.write(0, 0, 'hi', { fg: '#ff0000' });
     renderer.flush();
     expect(pre.innerHTML).toContain('hi');
-    expect(pre.innerHTML).toContain('#ff0000');
+    // Color is now in a <style> element, not inline
+    expect(pre.innerHTML).not.toContain('style=');
+    var styleEl = document.getElementById('terminal-styles');
+    expect(styleEl).not.toBeNull();
+    expect(styleEl.textContent).toContain('#ff0000');
+    // Spans use class attributes
+    var span = pre.querySelector('span');
+    expect(span.className).toMatch(/^tc\d+$/);
   });
 
   test('flush escapes HTML in content', () => {
