@@ -268,9 +268,11 @@
 
     this.pre.addEventListener('mousemove', function (e) {
       var rect = self.pre.getBoundingClientRect();
+      // rect.top already accounts for scroll (it's negative when scrolled),
+      // so clientX/Y - rect.left/top gives the correct position within the pre.
       var pos = self.pixelToGrid(
-        e.clientX - rect.left + self.pre.parentElement.scrollLeft,
-        e.clientY - rect.top + self.pre.parentElement.scrollTop
+        e.clientX - rect.left,
+        e.clientY - rect.top
       );
       var m = (pos.row >= 0 && pos.row < self.totalRows && pos.col >= 0 && pos.col < self.cols)
         ? self.meta[pos.row][pos.col] : null;
@@ -293,8 +295,8 @@
     this.pre.addEventListener('click', function (e) {
       var rect = self.pre.getBoundingClientRect();
       var pos = self.pixelToGrid(
-        e.clientX - rect.left + self.pre.parentElement.scrollLeft,
-        e.clientY - rect.top + self.pre.parentElement.scrollTop
+        e.clientX - rect.left,
+        e.clientY - rect.top
       );
       var m = (pos.row >= 0 && pos.row < self.totalRows && pos.col >= 0 && pos.col < self.cols)
         ? self.meta[pos.row][pos.col] : null;
