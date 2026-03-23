@@ -345,8 +345,8 @@
     var contentW = Math.min(cols - 4, 76);
     var pad = Math.max(Math.floor((cols - contentW) / 2), 2);
 
-    // Nav bar
-    r += 2;
+    // Nav bar (top padding + content + bottom padding + underline)
+    r += 4;
 
     // Hero: ASCII art
     var useSmall = cols < 60;
@@ -603,6 +603,8 @@
   };
 
   TerminalRenderer.prototype._drawNav = function (r) {
+    r += 1; // top padding
+
     // Logo
     this.write(r, 1, 'CH', { fg: C.bright, bold: true });
 
@@ -627,8 +629,10 @@
       pos -= 2; // gap
     }
 
+    r += 1; // bottom padding
+
     // Nav underline
-    this.write(r + 1, 0, repeat('═', this.cols), { fg: C.dim });
+    this.write(r, 0, repeat('═', this.cols), { fg: C.dim });
 
     return r + 2;
   };
