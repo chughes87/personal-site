@@ -390,6 +390,7 @@
     r += 1; // rule
     r += 2; // title
     r += 3; // text
+    r += 2; // email link
     r += 3; // button
     r += 2;
 
@@ -485,7 +486,8 @@
       { title: 'Testing & Infra', items: ['Playwright', 'Cypress', 'AWS', 'GCP'] }
     ];
 
-    var boxW = 18;
+    // Box width must fit longest title: "─ Testing & Infra ─" + borders = 21
+    var boxW = 21;
     var gap = 2;
     var boxesPerRow = Math.floor((contentW + gap) / (boxW + gap));
     if (boxesPerRow < 1) boxesPerRow = 1;
@@ -582,6 +584,11 @@
     var contactText = 'Have a project in mind, a question, or just want to say hello? My inbox is always open.';
     r = this.writeWrapped(r, pad, contactText, contentW, { fg: C.white });
     r += 1;
+
+    var emailText = '> Email: cjhughes87@pm.me';
+    this.write(r, pad, emailText, { fg: C.cyan });
+    this.addLink(r, pad, emailText.length, 'mailto:cjhughes87@pm.me', 'link_email');
+    r += 2;
 
     this.drawCenterButton(r, 'Say Hello', 'mailto:cjhughes87@pm.me', { fg: C.cyan });
     r += 4;
