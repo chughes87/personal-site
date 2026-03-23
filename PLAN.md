@@ -194,7 +194,7 @@ personal-site/
 ## Terminal Renderer Performance Optimizations
 
 1. [x] Trim trailing whitespace — skip rendering trailing space spans in `flush()`
-2. [ ] Row-level dirty tracking — per-row `<div>` elements, partial re-render on hover
+2. [x] Row-level dirty tracking — per-row `<div>` elements, partial re-render on hover
 3. [ ] CSS classes instead of inline styles — bounded class set, `<style>` injection
 
 ## AWS Hosting Architecture

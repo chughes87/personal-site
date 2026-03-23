@@ -168,6 +168,47 @@ describe('TerminalRenderer', () => {
     expect(totalChars).toBe(2);
   });
 
+  test('flush creates per-row div elements and populates rowEls', () => {
+    renderer.cols = 10;
+    renderer.allocate(3);
+    renderer.write(0, 0, 'AAA');
+    renderer.write(2, 0, 'CCC');
+    renderer.flush();
+    expect(renderer.rowEls.length).toBe(3);
+    expect(pre.children.length).toBe(3);
+    expect(pre.children[0].tagName).toBe('DIV');
+    expect(pre.children[0].innerHTML).toContain('AAA');
+    expect(pre.children[2].innerHTML).toContain('CCC');
+  });
+
+  test('flushRows updates only specified rows', () => {
+    renderer.cols = 20;
+    renderer.allocate(3);
+    renderer.write(0, 0, 'row0');
+    renderer.write(1, 0, 'row1');
+    renderer.write(2, 0, 'row2');
+    renderer.flush();
+
+    var row0Before = renderer.rowEls[0].innerHTML;
+    var row2Before = renderer.rowEls[2].innerHTML;
+
+    // Modify buffer for row 1 only
+    renderer.write(1, 0, 'CHANGED', { fg: '#ff0000' });
+    renderer.flushRows([1]);
+
+    expect(renderer.rowEls[0].innerHTML).toBe(row0Before);
+    expect(renderer.rowEls[2].innerHTML).toBe(row2Before);
+    expect(renderer.rowEls[1].innerHTML).toContain('CHANGED');
+  });
+
+  test('addLink tracks rows per group', () => {
+    renderer.cols = 30;
+    renderer.allocate(5);
+    renderer.addLink(1, 0, 3, 'https://x.com', 'g1');
+    renderer.addLink(3, 0, 3, 'https://x.com', 'g1');
+    expect(renderer.groups['g1'].rows).toEqual([1, 3]);
+  });
+
   test('hover changes hovered group and re-renders', () => {
     renderer.cols = 30;
     renderer.allocate(3);
