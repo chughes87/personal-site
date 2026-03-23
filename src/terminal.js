@@ -23,6 +23,40 @@
     hoverBg: '#1a2332'
   };
 
+  // ── Style class cache ─────────────────────────────────────────────────────
+  // Maps fg|bg|bold keys to short class names, injected as a <style> element.
+
+  var styleClasses = {};
+  var styleRules = [];
+  var classCounter = 0;
+  var styleEl = null;
+
+  function getStyleClass(fg, bg, bold) {
+    var key = fg + '|' + (bg || '') + '|' + (bold ? '1' : '0');
+    if (!styleClasses[key]) {
+      var cls = 'tc' + classCounter++;
+      var rule = '.' + cls + '{color:' + fg;
+      if (bg) rule += ';background:' + bg;
+      if (bold) rule += ';font-weight:bold';
+      rule += '}';
+      styleClasses[key] = cls;
+      styleRules.push(rule);
+    }
+    return styleClasses[key];
+  }
+
+  function injectStyles() {
+    if (!styleEl) {
+      styleEl = document.getElementById('terminal-styles');
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'terminal-styles';
+        document.head.appendChild(styleEl);
+      }
+    }
+    styleEl.textContent = styleRules.join('');
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   function repeat(ch, n) {
@@ -180,10 +214,8 @@
       }
 
       var escaped = escapeHtml(run);
-      var styles = 'color:' + fg;
-      if (bg) styles += ';background:' + bg;
-      if (bold) styles += ';font-weight:bold';
-      parts.push('<span style="' + styles + '">' + escaped + '</span>');
+      var cls = getStyleClass(fg, bg, bold);
+      parts.push('<span class="' + cls + '">' + escaped + '</span>');
       i = j;
     }
 
@@ -196,6 +228,7 @@
       html.push('<div>' + this.flushRow(r) + '</div>');
     }
     this.pre.innerHTML = html.join('');
+    injectStyles();
     this.rowEls = Array.prototype.slice.call(this.pre.children);
   };
 
