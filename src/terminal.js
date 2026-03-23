@@ -47,9 +47,12 @@
 
   function injectStyles() {
     if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = 'terminal-styles';
-      document.head.appendChild(styleEl);
+      styleEl = document.getElementById('terminal-styles');
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'terminal-styles';
+        document.head.appendChild(styleEl);
+      }
     }
     styleEl.textContent = styleRules.join('');
   }
