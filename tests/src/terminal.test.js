@@ -196,7 +196,8 @@ describe('TerminalRenderer', () => {
     // Should not throw
     renderer.render();
     // Check that some expected content exists in the HTML
-    expect(pre.innerHTML).toContain('CHARLES');
+    // ASCII art header uses block characters, not literal "CHARLES"
+    expect(pre.innerHTML).toContain('██');
     expect(pre.innerHTML).toContain('Senior Software Engineer');
     expect(pre.innerHTML).toContain('ABOUT');
     expect(pre.innerHTML).toContain('SKILLS');
