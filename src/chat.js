@@ -85,14 +85,11 @@ function positionOverlays() {
   var top = topRows * cellH;
   var bottom = bottomRows * cellH;
 
-  chatMessages.style.top = top + 'px';
-  chatMessages.style.bottom = bottom + 'px';
-
-  if (chatGate && !chatGate.hidden) {
-    // Gate form positioned in center
-    chatGate.style.top = top + 'px';
-    chatGate.style.bottom = bottom + 'px';
-  }
+  // Push overlay content below terminal header chrome and above footer chrome
+  chatUI.style.paddingTop = top + 'px';
+  chatUI.style.paddingBottom = bottom + 'px';
+  chatGate.style.paddingTop = top + 'px';
+  chatGate.style.paddingBottom = bottom + 'px';
 }
 
 // ── Username ───────────────────────────────────────────────────────────────
