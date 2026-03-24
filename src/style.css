@@ -1063,6 +1063,11 @@ a:hover { opacity: 0.8; }
   background: #0d1117;
 }
 
+/* On chat page, terminal is background-only — no scrolling */
+#terminalWrap:has(#chatTerminal) {
+  overflow: hidden;
+}
+
 #terminal,
 #chatTerminal {
   font-family: ui-monospace, "Cascadia Code", "Fira Code", "DejaVu Sans Mono", "Courier New", monospace;
@@ -1075,6 +1080,13 @@ a:hover { opacity: 0.8; }
   cursor: default;
   min-height: 100vh;
   min-height: 100svh;
+}
+
+#chatTerminal {
+  min-height: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
 }
 
 #terminal > div,
