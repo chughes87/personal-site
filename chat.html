@@ -1,87 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat &mdash; pointfree.space</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
-<body>
-  <header class="site-header">
-    <nav class="nav container">
-      <a href="/" class="nav-logo">CH</a>
-      <ul class="nav-links">
-        <li><a href="/#about">About</a></li>
-        <li><a href="/#skills">Skills</a></li>
-        <li><a href="/#projects">Projects</a></li>
-        <li><a href="/#contact">Contact</a></li>
-        <li><a href="/chat.html" aria-current="page">Chat</a></li>
-        <li><a href="/voice.html">Voice</a></li>
-      </ul>
-      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-        <span class="theme-icon">&#9790;</span>
-      </button>
-    </nav>
-  </header>
+<body class="terminal-page">
+  <div id="terminalWrap">
+    <pre id="chatTerminal"></pre>
 
-  <main class="chat-page">
-    <div class="chat-layout">
+    <!-- Gate overlay -->
+    <div class="chat-overlay chat-gate-overlay" id="chatGate" hidden>
+      <form id="gateForm" class="chat-gate-form">
+        <label class="chat-gate-label" for="usernameInput">&gt; Enter your name:</label>
+        <div class="chat-gate-row">
+          <input type="text" id="usernameInput" maxlength="30"
+                 placeholder="your name" autocomplete="off"
+                 aria-label="Display name" required>
+          <button type="submit" class="chat-gate-btn">Join</button>
+        </div>
+      </form>
+    </div>
 
-      <!-- Username gate -->
-      <div class="chat-gate" id="chatGate" hidden>
-        <form class="chat-gate-form" id="gateForm">
-          <h1 class="chat-gate-title">Join the chat</h1>
-          <p class="chat-gate-sub">Pick a display name to get started.</p>
-          <div class="chat-gate-row">
-            <input type="text" id="usernameInput" maxlength="30"
-                   placeholder="your name" autocomplete="off"
-                   aria-label="Display name" required>
-            <button type="submit" class="btn btn-primary">Join</button>
-          </div>
-        </form>
+    <!-- Chat overlay -->
+    <div class="chat-overlay" id="chatUI" hidden>
+      <div class="chat-messages-overlay" id="chatMessages"
+           role="log" aria-live="polite" aria-label="Chat messages">
+        <p class="chat-empty" id="chatEmpty">No messages yet &mdash; say hello!</p>
       </div>
-
-      <!-- Chat UI -->
-      <div class="chat-ui" id="chatUI" hidden>
-        <div class="chat-topbar">
-          <h1 class="chat-room-name"># general</h1>
-          <div class="chat-identity">
-            <span class="chat-you-label">You:</span>
-            <span class="chat-username" id="displayName"></span>
-            <button type="button" class="chat-rename" id="renameBtn">change</button>
-          </div>
-        </div>
-
-        <div class="chat-messages" id="chatMessages"
-             role="log" aria-live="polite" aria-label="Chat messages">
-          <p class="chat-empty" id="chatEmpty">No messages yet &mdash; say hello!</p>
-        </div>
-
-        <form class="chat-form" id="chatForm">
+      <div class="chat-input-bar">
+        <span class="chat-prompt-user" id="displayName"></span>
+        <button type="button" class="chat-rename" id="renameBtn">[change]</button>
+        <form id="chatForm" class="chat-input-form">
+          <span class="chat-prompt-caret">&gt;</span>
           <input type="text" id="messageInput" maxlength="500"
-                 placeholder="Message #general&hellip;" autocomplete="off"
+                 placeholder="type a message..." autocomplete="off"
                  aria-label="Message" required>
-          <button type="submit" class="btn btn-primary" id="sendBtn">Send</button>
+          <button type="submit" class="chat-send-btn" id="sendBtn">Send</button>
         </form>
-        <p class="chat-hint"><span id="charCount">0</span>/500</p>
-      </div>
-
-    </div>
-  </main>
-
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <p>&copy; <span id="year"></span> Charles Hughes. Built with care.</p>
-      <div class="footer-links">
-        <a href="https://github.com/chughes87" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://www.linkedin.com/in/charles-hughes-7a818618/" target="_blank" rel="noopener">LinkedIn</a>
+        <span class="chat-char-count"><span id="charCount">0</span>/500</span>
       </div>
     </div>
-  </footer>
+  </div>
+
+  <noscript>
+    <div class="noscript-fallback">
+      <h1>Chat</h1>
+      <p>JavaScript is required for the chat room.</p>
+      <p><a href="/">Home</a></p>
+    </div>
+  </noscript>
 
   <!-- Set this to your API Gateway URL after running: sam deploy -->
   <script>window.CHAT_API_BASE = 'https://TODO.execute-api.us-west-1.amazonaws.com';</script>
   <script src="src/main.js"></script>
+  <script src="src/terminal.js"></script>
   <script src="src/chat.js"></script>
 </body>
 </html>

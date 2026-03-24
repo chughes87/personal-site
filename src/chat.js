@@ -25,6 +25,76 @@ let lastTs   = 0;
 let pollTimer = null;
 const seen   = new Set(); // dedup by `ts#id`
 
+// ── Terminal renderer ──────────────────────────────────────────────────────
+var chatRenderer = null;
+
+var NAV_ITEMS = [
+  { label: 'About',    href: '/#about' },
+  { label: 'Skills',   href: '/#skills' },
+  { label: 'Projects', href: '/#projects' },
+  { label: 'Contact',  href: '/#contact' },
+  { label: 'Chat',     href: '/chat.html' },
+  { label: 'Voice',    href: '/voice.html' }
+];
+
+function chatPage(ctx) {
+  var C = window.TerminalColors;
+  ctx.nav(NAV_ITEMS);
+  ctx.spacer(1);
+  ctx.centerText('# general', { fg: C.yellow, bold: true });
+  ctx.rule();
+  // Middle area left empty — message overlay covers it
+  ctx.spacer(Math.max(1, ctx.r.rows - ctx.row - 4));
+  ctx.rule();
+  ctx.centerText('pointfree.space/chat', { fg: C.muted });
+  ctx.spacer(1);
+}
+
+function gatePage(ctx) {
+  var C = window.TerminalColors;
+  ctx.nav(NAV_ITEMS);
+  var midRow = Math.floor(ctx.r.rows / 2) - 3;
+  if (midRow > ctx.row) ctx.spacer(midRow - ctx.row);
+  ctx.centerText('Join the chat', { fg: C.yellow, bold: true });
+  ctx.spacer(1);
+  ctx.centerText('Pick a display name to get started.', { fg: C.muted });
+  ctx.spacer(2);
+}
+
+function initTerminal() {
+  var pre = document.getElementById('chatTerminal');
+  if (!pre || !window.TerminalRenderer) return;
+  chatRenderer = new window.TerminalRenderer(pre);
+  chatRenderer.measureCell();
+  chatRenderer.resize();
+}
+
+function renderTerminal(pageFn) {
+  if (!chatRenderer) return;
+  chatRenderer.render(pageFn);
+  positionOverlays();
+}
+
+function positionOverlays() {
+  if (!chatRenderer || !chatRenderer.cellH) return;
+  var cellH = chatRenderer.cellH;
+  // Nav (row 0-2) + spacer + title + rule = ~6 rows of chrome at top
+  // Bottom: rule + footer + spacer = ~3 rows of chrome
+  var topRows = 6;
+  var bottomRows = 3;
+  var top = topRows * cellH;
+  var bottom = bottomRows * cellH;
+
+  chatMessages.style.top = top + 'px';
+  chatMessages.style.bottom = bottom + 'px';
+
+  if (chatGate && !chatGate.hidden) {
+    // Gate form positioned in center
+    chatGate.style.top = top + 'px';
+    chatGate.style.bottom = bottom + 'px';
+  }
+}
+
 // ── Username ───────────────────────────────────────────────────────────────
 function getUsername()     { return localStorage.getItem(USERNAME_KEY); }
 function saveUsername(name) { localStorage.setItem(USERNAME_KEY, name); }
@@ -35,6 +105,7 @@ function showGate() {
   chatGate.hidden = false;
   usernameInput.value = getUsername() || '';
   usernameInput.focus();
+  renderTerminal(gatePage);
 }
 
 function showChat(name) {
@@ -42,6 +113,7 @@ function showChat(name) {
   chatGate.hidden = true;
   chatUI.hidden = false;
   messageInput.focus();
+  renderTerminal(chatPage);
   startPolling();
 }
 
@@ -78,11 +150,10 @@ function appendMessage({ id, username, content, ts }) {
   const isSelf = username === getUsername();
   const el = document.createElement('div');
   el.className = 'chat-msg' + (isSelf ? ' chat-msg--self' : '');
-  el.innerHTML = `
-    <span class="chat-msg-author">${esc(username)}</span>
-    <span class="chat-msg-time">${formatTime(ts)}</span>
-    <p class="chat-msg-text">${esc(content)}</p>
-  `;
+  el.innerHTML =
+    '<span class="chat-msg-time">' + formatTime(ts) + '</span> ' +
+    '<span class="chat-msg-author">&lt;' + esc(username) + '&gt;</span> ' +
+    '<span class="chat-msg-text">' + esc(content) + '</span>';
   chatMessages.appendChild(el);
 
   // Only auto-scroll if already near the bottom
@@ -178,7 +249,24 @@ messageInput.addEventListener('input', () => {
   charCount.textContent = messageInput.value.length;
 });
 
+// ── Resize ─────────────────────────────────────────────────────────────────
+if (chatRenderer) {
+  window.addEventListener('resize', function () {
+    clearTimeout(chatRenderer._resizeTimer);
+    chatRenderer._resizeTimer = setTimeout(function () {
+      chatRenderer.resize();
+      if (!chatUI.hidden) {
+        renderTerminal(chatPage);
+      } else {
+        renderTerminal(gatePage);
+      }
+    }, 150);
+  });
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
+initTerminal();
+
 const savedUsername = getUsername();
 if (savedUsername) {
   showChat(savedUsername);
