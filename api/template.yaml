@@ -90,7 +90,7 @@ Resources:
           AttributeType: S
       TimeToLiveSpecification:
         AttributeName: ttl
-        Enabled: true
+        Enabled: false
 
   RateLimitsTable:
     Type: AWS::DynamoDB::Table
