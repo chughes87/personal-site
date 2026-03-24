@@ -691,8 +691,8 @@
     ctx.section('skills', 'SKILLS', function () {
       ctx.boxGrid([
         { title: 'Languages',       items: ['TypeScript', 'JavaScript', 'Ruby', 'C++'] },
-        { title: 'Frontend',        items: ['React', 'Redux', 'Apollo Client', 'D3.js'] },
-        { title: 'Backend',         items: ['Node.js', 'Ruby on Rails', 'GraphQL', 'React Query'] },
+        { title: 'Frontend',        items: ['React', 'Redux', 'Apollo Client', 'D3.js', 'React Query'] },
+        { title: 'Backend',         items: ['Node.js', 'Ruby on Rails', 'GraphQL'] },
         { title: 'Testing & Infra', items: ['Playwright', 'Cypress', 'AWS', 'GCP'] }
       ], { width: 21, gap: 2 });
     });
