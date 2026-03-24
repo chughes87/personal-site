@@ -491,9 +491,11 @@ a:hover { opacity: 0.8; }
 
 .term-rule {
   border: none;
-  height: 1px;
+  height: 3px;
   background: #444444;
-  margin: 0 1rem;
+  border-top: 1px solid #444444;
+  border-bottom: 1px solid #444444;
+  margin: 0;
   flex-shrink: 0;
 }
 
