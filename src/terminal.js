@@ -737,11 +737,17 @@
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
+  // Boot index page if #terminal exists
   var pre = document.getElementById('terminal');
   if (pre) {
     var renderer = new TerminalRenderer(pre);
     renderer.init(indexPage);
   }
+
+  // Expose API for other pages (chat, voice)
+  window.TerminalRenderer = TerminalRenderer;
+  window.LayoutContext = LayoutContext;
+  window.TerminalColors = C;
 
   // Expose for testing
   if (typeof module !== 'undefined' && module.exports) {
