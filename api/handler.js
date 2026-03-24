@@ -119,7 +119,6 @@ async function postMessage(ip, username, content) {
     ts,
     username: username.trim().slice(0, MAX_USER),
     content:  content.trim().slice(0, MAX_CONTENT),
-    ttl:      ttl(7 * 86_400),
   };
 
   await ddb.send(new PutCommand({ TableName: MESSAGES_TABLE, Item: item }));
