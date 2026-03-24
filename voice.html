@@ -1,31 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Voice &mdash; pointfree.space</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
-<body>
-  <header class="site-header">
-    <nav class="nav container">
-      <a href="/" class="nav-logo">CH</a>
-      <ul class="nav-links">
-        <li><a href="/#about">About</a></li>
-        <li><a href="/#skills">Skills</a></li>
-        <li><a href="/#projects">Projects</a></li>
-        <li><a href="/#contact">Contact</a></li>
-        <li><a href="/chat.html">Chat</a></li>
-        <li><a href="/voice.html" aria-current="page">Voice</a></li>
-      </ul>
-      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-        <span class="theme-icon">&#9790;</span>
-      </button>
+<body class="terminal-page">
+  <div class="term-page">
+    <nav class="term-nav">
+      <a href="/" class="term-nav-logo">CH</a>
+      <div class="term-nav-links">
+        <a href="/#about">[About]</a>
+        <a href="/#skills">[Skills]</a>
+        <a href="/#projects">[Projects]</a>
+        <a href="/#contact">[Contact]</a>
+        <a href="/chat.html">[Chat]</a>
+        <a href="/voice.html" aria-current="page">[Voice]</a>
+      </div>
     </nav>
-  </header>
 
-  <main class="voice-page">
-    <div class="voice-layout">
+    <div class="term-rule"></div>
+
+    <main class="voice-page">
+      <div class="voice-layout">
 
       <!-- Username gate -->
       <div class="voice-gate" id="voiceGate" hidden>
@@ -76,8 +74,9 @@
         </details>
       </div>
 
-    </div>
-  </main>
+      </div>
+    </main>
+  </div>
 
   <!-- Set this to your API Gateway URL after running: sam deploy -->
   <script>window.VOICE_API_BASE = 'https://TODO.execute-api.us-west-1.amazonaws.com';</script>
