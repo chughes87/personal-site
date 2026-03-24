@@ -450,8 +450,10 @@ a:hover { opacity: 0.8; }
 /* -- Chat / terminal overlay layout -- */
 .chat-overlay {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
+  bottom: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -516,9 +518,7 @@ a:hover { opacity: 0.8; }
 
 /* -- Message area overlay -- */
 .chat-messages-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
+  flex: 1;
   overflow-y: auto;
   padding: 0.5rem 1rem;
   display: flex;
@@ -569,10 +569,7 @@ a:hover { opacity: 0.8; }
 
 /* -- Input bar overlay -- */
 .chat-input-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -581,7 +578,6 @@ a:hover { opacity: 0.8; }
   font-size: 14px;
   background: #0d1117;
   border-top: 1px solid #444444;
-  z-index: 2;
 }
 
 .chat-prompt-user {
@@ -1058,6 +1054,7 @@ a:hover { opacity: 0.8; }
 }
 
 #terminalWrap {
+  position: relative;
   width: 100vw;
   height: 100vh;
   height: 100svh;
